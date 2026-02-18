@@ -1,26 +1,23 @@
 """
-FIXED PRODUCTION DATA FETCHER
+PRODUCTION DATA FETCHER v2
 ==============================
-Key fixes vs original:
-1. _map_genes_to_pathways expanded from ~35 to ~200 genes covering:
-   - Cardiology / vascular (PDE5, NO, beta-adrenergic, prostacyclin)
-   - Immunology (B-cell, T-cell, CD20, complement)
-   - Oncology (EGFR, HER2, ER, AR, VEGF, RAS)
-   - Metabolic / PCOS (insulin, AMPK, steroid synthesis)
-   - Hair follicle biology (5-alpha reductase, potassium channels)
-   - Rare / lysosomal storage diseases
-2. DGIdb enrichment logic unchanged (already correct)
-3. OpenTargets fetch unchanged (already correct)
-4. CURATED TARGET FALLBACK added for drugs where DGIdb returns no data.
-   DGIdb systematically lacks targets for:
-     - Biologic / monoclonal antibody drugs (rituximab, trastuzumab)
-     - Some small molecules with sparse interaction records (sildenafil, metformin)
-   The fallback uses targets from UniProt / ChEMBL / primary literature.
-   Every entry is sourced and must be declared in the Methods section:
-     "For drugs not covered by DGIdb, gene targets were sourced from
-      UniProt, ChEMBL mechanism-of-action records, and primary literature."
-   This is a SUPPLEMENT to DGIdb, not a replacement — DGIdb data always
-   takes precedence; fallback only applies when DGIdb returns nothing.
+Changes vs v1:
+1. _enhance_with_pathways() now uses HybridPathwayMapper (Reactome + KEGG)
+   instead of the hand-curated _map_genes_to_pathways() dict.
+   The curated map is retained as a fallback inside HybridPathwayMapper
+   for genes not covered by either API.
+
+2. _map_genes_to_pathways() is kept but only called by HybridPathwayMapper
+   internally as a fallback — it is no longer the primary pathway source.
+
+3. Methods citation to add to your paper:
+   "Gene-to-pathway mappings were retrieved from the Reactome Pathway
+    Knowledgebase (v88; Jassal et al. 2020, Nucleic Acids Res,
+    doi:10.1093/nar/gkz1031) via the Reactome Content Service REST API,
+    supplemented by KEGG PATHWAY annotations (Kanehisa et al. 2023,
+    Nucleic Acids Res, doi:10.1093/nar/gkac963). For genes absent from
+    both databases, annotations were taken from a manually curated
+    reference map (Supplementary Table S1)."
 """
 
 import asyncio
@@ -32,6 +29,8 @@ import logging
 from typing import Optional, List, Dict, Set
 from pathlib import Path
 
+from .reactome_kegg_integration import HybridPathwayMapper
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -42,9 +41,9 @@ class ProductionDataFetcher:
     No hardcoded drug-disease pairs — all data comes from live APIs.
     """
 
-    OPENTARGETS_API  = "https://api.platform.opentargets.org/api/v4/graphql"
-    CHEMBL_API       = "https://www.ebi.ac.uk/chembl/api/data"
-    DGIDB_API        = "https://dgidb.org/api/graphql"
+    OPENTARGETS_API    = "https://api.platform.opentargets.org/api/v4/graphql"
+    CHEMBL_API         = "https://www.ebi.ac.uk/chembl/api/data"
+    DGIDB_API          = "https://dgidb.org/api/graphql"
     CLINICALTRIALS_API = "https://clinicaltrials.gov/api/v2/studies"
 
     def __init__(self, cache_dir: str = "/tmp/drug_repurposing_cache"):
@@ -54,6 +53,8 @@ class ProductionDataFetcher:
         self.drug_cache: Dict    = {}
         self.disease_cache: Dict = {}
         self.ssl_context = self._create_ssl_context()
+        # Shared HybridPathwayMapper instance (owns its own session + disk cache)
+        self._pathway_mapper: Optional[HybridPathwayMapper] = None
 
     def _create_ssl_context(self) -> ssl.SSLContext:
         try:
@@ -70,6 +71,11 @@ class ProductionDataFetcher:
             connector = aiohttp.TCPConnector(ssl=self.ssl_context)
             self.session = aiohttp.ClientSession(timeout=timeout, connector=connector)
         return self.session
+
+    def _get_pathway_mapper(self) -> HybridPathwayMapper:
+        if self._pathway_mapper is None:
+            self._pathway_mapper = HybridPathwayMapper(use_curated_fallback=True)
+        return self._pathway_mapper
 
     # ══════════════════════════════════════════════════════════════════════════
     #  DISEASE DATA
@@ -151,7 +157,7 @@ class ProductionDataFetcher:
                     return None
 
                 rows  = disease_data.get("associatedTargets", {}).get("rows", [])
-                genes: List[str]            = []
+                genes: List[str]              = []
                 gene_scores: Dict[str, float] = {}
                 for row in rows:
                     target = row.get("target", {})
@@ -177,208 +183,44 @@ class ProductionDataFetcher:
             return None
 
     async def _enhance_with_pathways(self, disease_data: Dict) -> Dict:
+        """
+        Fetch pathway annotations for disease genes using Reactome + KEGG.
+        Falls back to curated map for genes not found in either database.
+        """
         genes = disease_data.get("genes", [])[:50]
-        disease_data["pathways"] = self._map_genes_to_pathways(genes) if genes else []
+        if not genes:
+            disease_data["pathways"] = []
+            return disease_data
+
+        mapper = self._get_pathway_mapper()
+
+        logger.info(f"🔬 Fetching Reactome/KEGG pathways for {len(genes)} genes...")
+        try:
+            gene_pathway_map = await mapper.get_pathways_bulk(genes)
+
+            all_pathways: Set[str] = set()
+            covered_by_api = 0
+            covered_by_fallback = 0
+
+            for gene, pathways in gene_pathway_map.items():
+                if pathways:
+                    all_pathways.update(pathways)
+                    # Detect whether result came from API or fallback
+                    # (HybridPathwayMapper logs this internally)
+                    covered_by_api += 1
+                else:
+                    covered_by_fallback += 1
+
+            disease_data["pathways"] = sorted(all_pathways) if all_pathways else ["General cellular signaling"]
+            logger.info(
+                f"✅ Pathway mapping complete: {len(all_pathways)} unique pathways "
+                f"(genes with annotations: {covered_by_api}/{len(genes)})"
+            )
+        except Exception as e:
+            logger.warning(f"⚠️  Pathway mapper failed ({e}), using curated fallback for all genes")
+            disease_data["pathways"] = self._map_genes_to_pathways_fallback(genes)
+
         return disease_data
-
-    def _map_genes_to_pathways(self, genes: List[str]) -> List[str]:
-        """
-        Expanded gene→pathway map.
-        Covers neurodegeneration, cardiology/vascular, immunology, oncology,
-        metabolic/PCOS, hair-follicle biology, and lysosomal storage diseases.
-        This is curated biological knowledge, NOT hardcoded drug-disease pairs.
-        """
-        pathway_map: Dict[str, List[str]] = {
-            # ── Neurodegeneration ─────────────────────────────────────────
-            "SNCA":   ["Alpha-synuclein aggregation", "Dopamine metabolism", "Autophagy"],
-            "LRRK2":  ["Autophagy", "Mitochondrial function", "Vesicle trafficking"],
-            "PRKN":   ["Mitophagy", "Ubiquitin-proteasome system"],
-            "PINK1":  ["Mitophagy", "Mitochondrial quality control"],
-            "PARK7":  ["Oxidative stress response", "Mitochondrial function"],
-            "DJ1":    ["Oxidative stress response", "Mitochondrial function"],
-            "GBA":    ["Lysosomal function", "Sphingolipid metabolism", "Autophagy"],
-            "GBA1":   ["Lysosomal function", "Sphingolipid metabolism", "Autophagy"],
-            "MAOB":   ["Dopamine metabolism", "Monoamine oxidase"],
-            "TH":     ["Dopamine biosynthesis", "Catecholamine synthesis"],
-            "DDC":    ["Dopamine biosynthesis", "Neurotransmitter synthesis"],
-            "LAMP1":  ["Lysosomal function", "Autophagy"],
-            "LAMP2":  ["Autophagy", "Lysosomal membrane"],
-            "HTT":    ["Huntingtin aggregation", "Ubiquitin-proteasome system"],
-            "APP":    ["Amyloid-beta production", "APP processing"],
-            "MAPT":   ["Tau protein function", "Microtubule stability"],
-            "PSEN1":  ["Amyloid-beta production", "Gamma-secretase complex"],
-            "PSEN2":  ["Amyloid-beta production", "Gamma-secretase complex"],
-            "APOE":   ["Lipid metabolism", "Amyloid-beta clearance"],
-            "CHAT":   ["Cholinergic signaling", "Neurotransmitter synthesis"],
-            "ACHE":   ["Cholinergic signaling", "Acetylcholine degradation"],
-            # NMDA/glutamate (covers amantadine, memantine, ketamine)
-            "GRIN1":  ["NMDA receptor signaling", "Glutamate signaling", "Synaptic plasticity"],
-            "GRIN2A": ["NMDA receptor signaling", "Glutamate signaling", "Synaptic plasticity"],
-            "GRIN2B": ["NMDA receptor signaling", "Glutamate signaling", "Synaptic plasticity"],
-            "GRIN2C": ["NMDA receptor signaling", "Glutamate signaling"],
-            "GRIN2D": ["NMDA receptor signaling", "Glutamate signaling"],
-            "GRIN3A": ["NMDA receptor signaling", "Synaptic plasticity"],
-            "GRIN3B": ["NMDA receptor signaling"],
-
-            # ── Cardiology / vascular ─────────────────────────────────────
-            # PDE5 / NO / cGMP (covers sildenafil for PAH)
-            "PDE5A":  ["PDE5 signaling", "cGMP-PKG signaling", "Nitric oxide signaling",
-                       "Pulmonary vascular remodeling", "Vasodilation"],
-            "NOS3":   ["Nitric oxide signaling", "Vasodilation", "Endothelial function"],
-            "NOS1":   ["Nitric oxide signaling", "Neurotransmitter synthesis"],
-            "GUCY1A1":["cGMP-PKG signaling", "Nitric oxide signaling"],
-            "GUCY1B1":["cGMP-PKG signaling", "Nitric oxide signaling"],
-            "PRKG1":  ["cGMP-PKG signaling", "Vasodilation"],
-            # Endothelin / prostacyclin (PAH targets)
-            "EDNRA":  ["Endothelin signaling", "Pulmonary vascular remodeling"],
-            "EDNRB":  ["Endothelin signaling", "Pulmonary vascular remodeling"],
-            "EDN1":   ["Endothelin signaling", "Vasoconstriction"],
-            "PTGIS":  ["Prostacyclin signaling", "Platelet aggregation"],
-            "TBXA2R": ["Arachidonic acid metabolism", "Platelet aggregation"],
-            # Beta-adrenergic (covers propranolol for tremor/PAH)
-            "ADRB1":  ["Beta-adrenergic signaling", "Cardiac function"],
-            "ADRB2":  ["Beta-adrenergic signaling", "Vasodilation", "Bronchodilation"],
-            "ADRB3":  ["Beta-adrenergic signaling", "Lipolysis"],
-            # COX / arachidonic (covers aspirin for CAD)
-            "PTGS1":  ["COX pathway", "Platelet aggregation", "Arachidonic acid metabolism"],
-            "PTGS2":  ["COX pathway", "Inflammatory response", "Arachidonic acid metabolism"],
-            "TBXAS1": ["Arachidonic acid metabolism", "Platelet aggregation"],
-            # Lipids / statins
-            "HMGCR":  ["HMGCR pathway", "Cholesterol metabolism", "Lipid metabolism"],
-            "LDLR":   ["Cholesterol metabolism", "LDL receptor signaling"],
-            "PCSK9":  ["Cholesterol metabolism", "LDL receptor signaling"],
-            "APOB":   ["Lipid metabolism", "LDL transport"],
-            "LPA":    ["Lipoprotein metabolism", "Coagulation cascade"],
-            # Renin-angiotensin
-            "ACE":    ["Renin-angiotensin system", "Blood pressure regulation"],
-            "AGT":    ["Renin-angiotensin system", "Blood pressure regulation"],
-            "AGTR1":  ["Renin-angiotensin system", "Vasoconstriction"],
-            # Coagulation
-            "ITGA2B": ["Platelet aggregation", "Coagulation cascade"],
-            "F2":     ["Coagulation cascade", "Thrombin signaling"],
-            "VWF":    ["Coagulation cascade", "Platelet adhesion"],
-
-            # ── Immunology / inflammation ─────────────────────────────────
-            # B-cell (covers rituximab for RA)
-            "MS4A1":  ["B-cell receptor signaling", "B-cell differentiation"],   # CD20
-            "CD20":   ["B-cell receptor signaling", "B-cell differentiation"],
-            "CD79A":  ["B-cell receptor signaling"],
-            "CD79B":  ["B-cell receptor signaling"],
-            "BLNK":   ["B-cell receptor signaling"],
-            "BTK":    ["B-cell receptor signaling", "B-cell differentiation"],
-            # T-cell / adaptive immunity
-            "CD4":    ["T-cell receptor signaling", "Adaptive immunity"],
-            "CD8A":   ["T-cell receptor signaling", "Cytotoxic T-cell"],
-            "CTLA4":  ["T-cell checkpoint signaling"],
-            "PDCD1":  ["T-cell checkpoint signaling"],
-            # Cytokines / JAK-STAT
-            "TNF":    ["TNF signaling", "NF-κB signaling", "Inflammatory response"],
-            "IL6":    ["JAK-STAT signaling", "Cytokine signaling", "IL-6 signaling"],
-            "IL1B":   ["Inflammatory response", "NF-κB signaling"],
-            "NFKB1":  ["NF-κB signaling", "Inflammatory response"],
-            "JAK1":   ["JAK-STAT signaling"],
-            "JAK2":   ["JAK-STAT signaling"],
-            "STAT3":  ["JAK-STAT signaling", "IL-6 signaling"],
-            "TGFB1":  ["TGF-beta signaling", "Inflammatory response"],
-            "HLA-B":  ["Immune presentation", "Adaptive immunity"],
-
-            # ── Oncology ─────────────────────────────────────────────────
-            "EGFR":   ["EGFR signaling", "MAPK signaling", "PI3K-Akt signaling"],
-            "ERBB2":  ["EGFR signaling", "HER2 signaling"],
-            "KRAS":   ["RAS signaling", "MAPK signaling"],
-            "BRAF":   ["MAPK signaling", "RAS signaling"],
-            "PIK3CA": ["PI3K-Akt signaling", "mTOR signaling"],
-            "PTEN":   ["PI3K-Akt signaling", "Cell growth regulation"],
-            "MTOR":   ["mTOR signaling", "Autophagy", "Protein synthesis"],
-            "TP53":   ["p53 signaling", "Apoptosis", "DNA damage response"],
-            "VEGFA":  ["Angiogenesis", "VEGF signaling"],
-            "VEGFR2": ["Angiogenesis", "VEGF signaling"],
-            "MYC":    ["Cell cycle regulation", "Oncogene signaling"],
-            "CCND1":  ["Cell cycle regulation", "CDK signaling"],
-            "CDK4":   ["Cell cycle regulation", "CDK signaling"],
-            "CDK6":   ["Cell cycle regulation", "CDK signaling"],
-            "RB1":    ["Cell cycle regulation", "Tumor suppressor"],
-            "BRCA1":  ["DNA damage response", "DNA repair"],
-            "BRCA2":  ["DNA damage response", "DNA repair"],
-            # Estrogen / breast / raloxifene
-            "ESR1":   ["Estrogen receptor signaling", "Nuclear receptor signaling",
-                       "Steroid hormone biosynthesis"],
-            "ESR2":   ["Estrogen receptor signaling", "Nuclear receptor signaling"],
-            "PGR":    ["Progesterone signaling", "Nuclear receptor signaling"],
-            # Proteasome / thalidomide / myeloma
-            "CRBN":   ["Protein degradation", "Ubiquitin-proteasome system",
-                       "IKZF1/3 degradation"],
-            "CUL4A":  ["Protein degradation", "Ubiquitin-proteasome system"],
-            "DDB1":   ["Protein degradation", "Ubiquitin-proteasome system"],
-            "RBX1":   ["Ubiquitin-proteasome system"],
-            "FGFR2":  ["FGFR signaling", "MAPK signaling"],
-            # HDAC / vorinostat
-            "HDAC1":  ["Histone modification", "Epigenetic regulation"],
-            "HDAC2":  ["Histone modification", "Epigenetic regulation"],
-            "HDAC6":  ["Histone modification", "Epigenetic regulation"],
-
-            # ── Metabolic / PCOS / diabetes ───────────────────────────────
-            "INSR":   ["Insulin signaling", "Glucose metabolism"],
-            "IRS1":   ["Insulin signaling", "PI3K-Akt signaling"],
-            "IRS2":   ["Insulin signaling", "PI3K-Akt signaling"],
-            "PRKAB1": ["AMPK signaling", "Glucose metabolism"],
-            "PRKAB2": ["AMPK signaling", "Glucose metabolism"],
-            "PRKAA1": ["AMPK signaling", "Gluconeogenesis"],
-            "PRKAA2": ["AMPK signaling", "Gluconeogenesis"],
-            "G6PC":   ["Gluconeogenesis", "Glucose metabolism"],
-            "PCK1":   ["Gluconeogenesis", "Glucose metabolism"],
-            "SLC2A4": ["Glucose metabolism", "GLUT4 transport"],
-            "PPARG":  ["PPAR signaling", "Adipogenesis", "Glucose metabolism"],
-            "PPARA":  ["PPAR signaling", "Fatty acid oxidation"],
-            # PCOS-specific
-            "LHCGR":  ["Steroid hormone biosynthesis", "Gonadotropin signaling"],
-            "FSHR":   ["Steroid hormone biosynthesis", "Gonadotropin signaling"],
-            "CYP17A1":["Steroid hormone biosynthesis", "Androgen receptor signaling"],
-            "CYP19A1":["Steroid hormone biosynthesis", "Estrogen receptor signaling"],
-            "SHBG":   ["Steroid hormone biosynthesis", "Androgen binding"],
-            "AMH":    ["Gonadotropin signaling", "Ovarian function"],
-
-            # ── Hair follicle / alopecia ──────────────────────────────────
-            # 5-alpha reductase (covers finasteride)
-            "SRD5A1": ["5-alpha reductase pathway", "Androgen receptor signaling",
-                       "Hair follicle cycling", "Steroid hormone biosynthesis"],
-            "SRD5A2": ["5-alpha reductase pathway", "Androgen receptor signaling",
-                       "Hair follicle cycling"],
-            "AR":     ["Androgen receptor signaling", "Hair follicle cycling"],
-            # Potassium channels / minoxidil
-            "KCNJ8":  ["Potassium channel signaling", "Vasodilation", "Hair follicle cycling"],
-            "KCNJ11": ["Potassium channel signaling", "Vasodilation"],
-            "ABCC9":  ["Potassium channel signaling", "Vasodilation"],
-            # CYP enzymes (minoxidil metabolism)
-            "CYP2C9": ["Drug metabolism", "CYP oxidation"],
-            "CYP2D6": ["Drug metabolism", "CYP oxidation"],
-
-            # ── Lysosomal / rare diseases ─────────────────────────────────
-            "ATP7B":  ["Copper metabolism", "Metal ion homeostasis"],
-            "NPC1":   ["Cholesterol trafficking", "Lysosomal function"],
-            "NPC2":   ["Cholesterol metabolism", "Lipid transport"],
-            "DMD":    ["Dystrophin-glycoprotein complex", "Muscle fiber integrity"],
-            "CFTR":   ["Chloride ion transport", "CFTR trafficking"],
-            "HEXA":   ["Lysosomal function", "Sphingolipid metabolism"],
-            "HEXB":   ["Lysosomal function", "Sphingolipid metabolism"],
-            "GALC":   ["Lysosomal function", "Sphingolipid metabolism"],
-            "ARSA":   ["Lysosomal function", "Sulfatide metabolism"],
-            "ASAH1":  ["Sphingolipid metabolism", "Lysosomal function"],
-
-            # ── Misc signaling ────────────────────────────────────────────
-            "HGF":    ["MET signaling", "Cell growth"],
-            "PLCG1":  ["Phospholipase C signaling", "IP3 signaling"],
-            "SLC6A12":["Neurotransmitter transport"],
-            "CDH13":  ["Cell adhesion", "Cardiovascular function"],
-            "NAT2":   ["Drug metabolism", "Acetylation"],
-            "CFLAR":  ["Apoptosis", "FLIP signaling"],
-        }
-
-        pathways: Set[str] = set()
-        for gene in genes:
-            if gene in pathway_map:
-                pathways.update(pathway_map[gene])
-        return sorted(pathways) if pathways else ["General cellular signaling"]
 
     def _mark_rare_disease(self, disease_data: Dict) -> Dict:
         name = disease_data.get("name", "").lower()
@@ -399,11 +241,11 @@ class ProductionDataFetcher:
             async with session.get(
                 self.CLINICALTRIALS_API,
                 params={
-                    "query.cond":            disease_data["name"],
-                    "filter.overallStatus":  "RECRUITING,ACTIVE_NOT_RECRUITING",
-                    "pageSize":              1,
-                    "format":                "json",
-                    "countTotal":            "true",
+                    "query.cond":           disease_data["name"],
+                    "filter.overallStatus": "RECRUITING,ACTIVE_NOT_RECRUITING",
+                    "pageSize":             1,
+                    "format":               "json",
+                    "countTotal":           "true",
                 },
             ) as resp:
                 if resp.status == 200:
@@ -422,45 +264,7 @@ class ProductionDataFetcher:
     #  DRUG DATA
     # ══════════════════════════════════════════════════════════════════════════
 
-    # Drugs that must always be present in the candidate pool.
-    # ChEMBL returns drugs in arbitrary order — clinically important drugs
-    # may fall outside the top-500 window. This list ensures they are always
-    # fetched and evaluated. It does NOT affect scores, only pool coverage.
-    # Methods citation: "The candidate pool was supplemented with drugs having
-    # established clinical evidence for the target indications, fetched by
-    # name from ChEMBL (https://www.ebi.ac.uk/chembl), to ensure complete
-    # coverage of the validation set."
-    ESSENTIAL_DRUGS: List[str] = [
-        "sildenafil", "tadalafil", "vardenafil",
-        "rituximab", "abatacept", "tocilizumab",
-        "metformin", "pioglitazone",
-        "imatinib", "dasatinib",
-        "propranolol", "atenolol", "metoprolol",
-        "amantadine", "memantine",
-        "raloxifene", "tamoxifen",
-        "finasteride", "dutasteride",
-        "minoxidil",
-    ]
-
-    async def _fetch_drug_by_name(self, name: str) -> Optional[Dict]:
-        """Fetch a single approved drug from ChEMBL by preferred name."""
-        session = await self._get_session()
-        try:
-            async with session.get(
-                f"{self.CHEMBL_API}/molecule.json",
-                params={"pref_name__iexact": name, "max_phase": "4", "limit": 1},
-            ) as resp:
-                if resp.status != 200:
-                    return None
-                data = await resp.json()
-                molecules = data.get("molecules", [])
-                if molecules:
-                    return self._process_chembl_molecule(molecules[0])
-        except Exception as e:
-            logger.debug(f"Could not fetch {name} from ChEMBL: {e}")
-        return None
-
-    async def fetch_approved_drugs(self, limit: int = 500) -> List[Dict]:
+    async def fetch_approved_drugs(self, limit: int = 2000) -> List[Dict]:
         logger.info(f"💊 Fetching approved drugs from ChEMBL (limit={limit})...")
 
         cache_file = self.cache_dir / "chembl_approved_drugs.json"
@@ -479,28 +283,11 @@ class ProductionDataFetcher:
             logger.error("❌ No drugs fetched from ChEMBL!")
             return []
 
-        # Inject essential drugs missing from the random ChEMBL 500-drug window
-        existing_names = {d["name"].lower() for d in drugs}
-        missing = [n for n in self.ESSENTIAL_DRUGS if n not in existing_names]
-        if missing:
-            logger.info(
-                f"🔍 Injecting {len(missing)} essential drugs absent from pool: {missing}"
-            )
-            results = await asyncio.gather(
-                *[self._fetch_drug_by_name(n) for n in missing],
-                return_exceptions=True,
-            )
-            added = sum(
-                1 for r in results
-                if isinstance(r, dict) and r and drugs.append(r) is None
-            )
-            logger.info(f"   ✅ Added {added} essential drugs (pool now {len(drugs)})")
-
-        # Step 1: DGIdb (primary source — broadest small-molecule coverage)
+        # Step 1: DGIdb (primary source)
         logger.info(f"🔗 Step 1/3: Enhancing {len(drugs)} drugs with DGIdb targets...")
         drugs = await self._enhance_with_dgidb(drugs)
 
-        # Step 2: ChEMBL mechanism-of-action fallback for DGIdb gaps
+        # Step 2: ChEMBL mechanism fallback for DGIdb gaps
         unenriched = [d for d in drugs if not d.get("targets")]
         logger.info(
             f"🔗 Step 2/3: ChEMBL mechanism enriching "
@@ -537,30 +324,10 @@ class ProductionDataFetcher:
     async def _enhance_with_chembl_mechanisms(self, drugs: List[Dict]) -> List[Dict]:
         """
         For drugs that DGIdb left with no targets, query the ChEMBL
-        mechanism-of-action endpoint using the ChEMBL ID we already have.
-
-        ChEMBL mechanism records contain:
-          - mechanism_of_action  (human-readable string)
-          - target_chembl_id     (ChEMBL target ID)
-          - target_name
-          - action_type
-
-        We then resolve each target_chembl_id to a HGNC gene symbol using
-        the ChEMBL target endpoint.
-
-        This covers biologics (rituximab → MS4A1), kinase inhibitors
-        (imatinib → ABL1/PDGFR), metabolic drugs (metformin → PRKAA2),
-        and many others that DGIdb misses — entirely from live API data,
-        no hardcoding.
-
-        Methods citation:
-          "For drugs not enriched by DGIdb, gene targets were retrieved
-           from the ChEMBL mechanism-of-action endpoint (ChEMBL v33,
-           https://www.ebi.ac.uk/chembl/api/data/mechanism)."
+        mechanism-of-action endpoint and resolve gene symbols.
         """
         session = await self._get_session()
 
-        # Build lookup: chembl_id → drug object, only for unenriched drugs
         unenriched_map: Dict[str, Dict] = {
             d["id"]: d
             for d in drugs
@@ -571,19 +338,13 @@ class ProductionDataFetcher:
             logger.info("   No unenriched drugs to process")
             return drugs
 
-        # ── Step A: fetch mechanism records in batches of ChEMBL IDs ─────────
-        # ChEMBL REST allows filtering by molecule_chembl_id__in
         BATCH_SIZE = 50
         chembl_ids = list(unenriched_map.keys())
-
-        # target_chembl_id → gene symbol cache (avoid repeat lookups)
         target_symbol_cache: Dict[str, str] = {}
-
-        # drug chembl_id → list of gene symbols
         drug_gene_map: Dict[str, List[str]] = {}
 
         for batch_start in range(0, len(chembl_ids), BATCH_SIZE):
-            batch = chembl_ids[batch_start: batch_start + BATCH_SIZE]
+            batch     = chembl_ids[batch_start: batch_start + BATCH_SIZE]
             ids_param = ",".join(batch)
 
             try:
@@ -591,36 +352,28 @@ class ProductionDataFetcher:
                     f"{self.CHEMBL_API}/mechanism.json",
                     params={
                         "molecule_chembl_id__in": ids_param,
-                        "limit": BATCH_SIZE * 5,   # a drug can have multiple mechanisms
+                        "limit": BATCH_SIZE * 5,
                     },
                 ) as resp:
                     if resp.status != 200:
-                        logger.warning(
-                            f"⚠️  ChEMBL mechanism endpoint returned {resp.status}"
-                        )
+                        logger.warning(f"⚠️  ChEMBL mechanism endpoint returned {resp.status}")
                         continue
 
-                    data      = await resp.json()
+                    data       = await resp.json()
                     mechanisms = data.get("mechanisms", [])
 
                     for mech in mechanisms:
-                        mol_id    = mech.get("molecule_chembl_id")
-                        tgt_id    = mech.get("target_chembl_id")
-                        tgt_type  = mech.get("target_type", "")
+                        mol_id   = mech.get("molecule_chembl_id")
+                        tgt_id   = mech.get("target_chembl_id")
+                        tgt_type = mech.get("target_type", "")
 
                         if not mol_id or not tgt_id:
                             continue
-
-                        # Only keep SINGLE PROTEIN targets — not protein complexes
-                        # or selectivity groups, which don't map to single genes
                         if tgt_type not in ("SINGLE PROTEIN", ""):
                             continue
 
-                        # Resolve target_chembl_id → gene symbol
                         if tgt_id not in target_symbol_cache:
-                            symbol = await self._resolve_chembl_target(
-                                tgt_id, session
-                            )
+                            symbol = await self._resolve_chembl_target(tgt_id, session)
                             target_symbol_cache[tgt_id] = symbol or ""
 
                         symbol = target_symbol_cache[tgt_id]
@@ -633,32 +386,36 @@ class ProductionDataFetcher:
                 logger.error(f"❌ ChEMBL mechanism batch failed: {e}")
                 continue
 
-        # ── Step B: apply resolved targets back to drug objects ───────────────
         filled = 0
+        mapper = self._get_pathway_mapper()
+
         for chembl_id, gene_symbols in drug_gene_map.items():
             if chembl_id in unenriched_map and gene_symbols:
                 drug = unenriched_map[chembl_id]
                 drug["targets"]       = gene_symbols
-                drug["pathways"]      = self._infer_pathways_from_targets(gene_symbols)
                 drug["target_source"] = "opentargets_mechanism"
                 filled += 1
+                # Fetch pathways for these drug targets via Reactome/KEGG
+                try:
+                    gene_pw_map = await mapper.get_pathways_bulk(gene_symbols[:20])
+                    pw_set: Set[str] = set()
+                    for pws in gene_pw_map.values():
+                        pw_set.update(pws)
+                    drug["pathways"] = sorted(pw_set)
+                except Exception:
+                    drug["pathways"] = self._infer_pathways_from_targets_fallback(gene_symbols)
+
                 logger.info(
                     f"   ✅ ChEMBL mechanism enriched {drug['name']} → "
                     f"{len(gene_symbols)} targets {gene_symbols}"
                 )
 
-        logger.info(
-            f"   OpenTargets mechanism enriched {filled} additional drugs"
-        )
+        logger.info(f"   OpenTargets mechanism enriched {filled} additional drugs")
         return drugs
 
     async def _resolve_chembl_target(
         self, target_chembl_id: str, session: aiohttp.ClientSession
     ) -> Optional[str]:
-        """
-        Resolve a ChEMBL target ID to a HGNC gene symbol.
-        Returns None if the target is not a single protein or has no symbol.
-        """
         try:
             async with session.get(
                 f"{self.CHEMBL_API}/target/{target_chembl_id}.json",
@@ -667,47 +424,54 @@ class ProductionDataFetcher:
                 if resp.status != 200:
                     return None
                 data = await resp.json()
-
-                # Walk target_components → component_synonyms for gene symbol
                 components = data.get("target_components", [])
                 for component in components:
                     for synonym in component.get("target_component_synonyms", []):
                         if synonym.get("syn_type") == "GENE_SYMBOL":
                             return synonym.get("component_synonym")
-
-                # Fallback: try component_xrefs for HGNC
-                for component in components:
-                    for xref in component.get("target_component_xrefs", []):
-                        if xref.get("xref_src_db") == "UniProt":
-                            # UniProt accession — not a gene symbol but
-                            # better than nothing; skip for now
-                            pass
         except Exception:
             pass
         return None
 
     async def _fetch_chembl_approved_drugs(self, limit: int) -> List[Dict]:
+        """
+        Fetch up to `limit` approved drugs from ChEMBL, paginating in
+        batches of 1000 (the ChEMBL API maximum per request).
+        No drug names are injected — whatever ChEMBL returns is the pool.
+        """
         session = await self._get_session()
         drugs: List[Dict] = []
-        try:
-            async with session.get(
-                f"{self.CHEMBL_API}/molecule.json",
-                params={"max_phase": "4", "limit": min(limit, 1000), "offset": 0},
-            ) as resp:
-                if resp.status != 200:
-                    logger.error(f"❌ ChEMBL API failed: {resp.status}")
-                    return []
-                data      = await resp.json()
-                molecules = data.get("molecules", [])
-                logger.info(f"📥 Processing {len(molecules)} molecules from ChEMBL...")
-                for i, mol in enumerate(molecules):
-                    if i % 50 == 0 and i > 0:
-                        logger.info(f"  ... processed {i}/{len(molecules)}")
-                    drug = self._process_chembl_molecule(mol)
-                    if drug:
-                        drugs.append(drug)
-        except Exception as e:
-            logger.error(f"❌ ChEMBL fetch failed: {e}")
+        PAGE_SIZE = 1000
+        offset = 0
+
+        while len(drugs) < limit:
+            batch_size = min(PAGE_SIZE, limit - len(drugs))
+            try:
+                async with session.get(
+                    f"{self.CHEMBL_API}/molecule.json",
+                    params={"max_phase": "4", "limit": batch_size, "offset": offset},
+                ) as resp:
+                    if resp.status != 200:
+                        logger.error(f"❌ ChEMBL API failed: {resp.status}")
+                        break
+                    data      = await resp.json()
+                    molecules = data.get("molecules", [])
+                    if not molecules:
+                        logger.info("📥 ChEMBL returned no more molecules, stopping pagination")
+                        break
+                    logger.info(f"📥 ChEMBL page offset={offset}: {len(molecules)} molecules")
+                    for mol in molecules:
+                        drug = self._process_chembl_molecule(mol)
+                        if drug:
+                            drugs.append(drug)
+                    offset += len(molecules)
+                    if len(molecules) < batch_size:
+                        break
+            except Exception as e:
+                logger.error(f"❌ ChEMBL fetch failed at offset {offset}: {e}")
+                break
+
+        logger.info(f"✅ Fetched {len(drugs)} drugs from ChEMBL (requested {limit})")
         return drugs
 
     def _process_chembl_molecule(self, molecule: Dict) -> Optional[Dict]:
@@ -798,8 +562,8 @@ class ProductionDataFetcher:
                             logger.info(f"   ✅ DGIdb returned {len(dgidb_drugs)} drug records")
 
                         for dd in dgidb_drugs:
-                            key     = dd.get("name", "").lower()
-                            inters  = dd.get("interactions") or []
+                            key    = dd.get("name", "").lower()
+                            inters = dd.get("interactions") or []
                             targets = [
                                 i["gene"]["name"]
                                 for i in inters
@@ -818,7 +582,9 @@ class ProductionDataFetcher:
 
         logger.info(f"📊 DGIdb mapping complete: {len(drug_target_map)} drugs have targets")
 
+        mapper  = self._get_pathway_mapper()
         enhanced = 0
+
         for drug in drugs:
             candidates = {
                 drug["name"].lower(),
@@ -829,8 +595,19 @@ class ProductionDataFetcher:
                 if key in drug_target_map:
                     targets          = drug_target_map[key]
                     drug["targets"]  = targets
-                    drug["pathways"] = self._infer_pathways_from_targets(targets)
+                    drug["target_source"] = "dgidb"
                     enhanced += 1
+
+                    # Fetch Reactome/KEGG pathways for these targets
+                    try:
+                        gene_pw_map = await mapper.get_pathways_bulk(targets[:20])
+                        pw_set: Set[str] = set()
+                        for pws in gene_pw_map.values():
+                            pw_set.update(pws)
+                        drug["pathways"] = sorted(pw_set)
+                    except Exception:
+                        drug["pathways"] = self._infer_pathways_from_targets_fallback(targets)
+
                     break
 
         logger.info(f"✅ Enhanced {enhanced}/{len(drugs)} drugs with DGIdb gene targets")
@@ -839,16 +616,199 @@ class ProductionDataFetcher:
             logger.error("❌ CRITICAL: No drugs enhanced — check DGIdb connectivity")
         return drugs
 
-    def _infer_pathways_from_targets(self, targets: List[str]) -> List[str]:
+    # ══════════════════════════════════════════════════════════════════════════
+    #  FALLBACK helpers (used when Reactome/KEGG APIs are unreachable)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _infer_pathways_from_targets_fallback(self, targets: List[str]) -> List[str]:
+        """Use curated map as emergency fallback."""
         pathways: Set[str] = set()
         for t in targets[:20]:
-            pathways.update(self._map_genes_to_pathways([t]))
+            pathways.update(self._map_genes_to_pathways_fallback([t]))
         return list(pathways)
+
+    def _map_genes_to_pathways_fallback(self, genes: List[str]) -> List[str]:
+        """
+        Curated gene→pathway map — now used ONLY as fallback when both
+        Reactome and KEGG APIs fail or return nothing.
+
+        This is the original _map_genes_to_pathways() content, preserved
+        verbatim so existing behaviour is not regressed.
+        """
+        pathway_map: Dict[str, List[str]] = {
+            # ── Neurodegeneration ─────────────────────────────────────────
+            "SNCA":   ["Alpha-synuclein aggregation", "Dopamine metabolism", "Autophagy"],
+            "LRRK2":  ["Autophagy", "Mitochondrial function", "Vesicle trafficking"],
+            "PRKN":   ["Mitophagy", "Ubiquitin-proteasome system"],
+            "PINK1":  ["Mitophagy", "Mitochondrial quality control"],
+            "PARK7":  ["Oxidative stress response", "Mitochondrial function"],
+            "DJ1":    ["Oxidative stress response", "Mitochondrial function"],
+            "GBA":    ["Lysosomal function", "Sphingolipid metabolism", "Autophagy"],
+            "GBA1":   ["Lysosomal function", "Sphingolipid metabolism", "Autophagy"],
+            "MAOB":   ["Dopamine metabolism", "Monoamine oxidase"],
+            "TH":     ["Dopamine biosynthesis", "Catecholamine synthesis"],
+            "DDC":    ["Dopamine biosynthesis", "Neurotransmitter synthesis"],
+            "LAMP1":  ["Lysosomal function", "Autophagy"],
+            "LAMP2":  ["Autophagy", "Lysosomal membrane"],
+            "HTT":    ["Huntingtin aggregation", "Ubiquitin-proteasome system"],
+            "APP":    ["Amyloid-beta production", "APP processing"],
+            "MAPT":   ["Tau protein function", "Microtubule stability"],
+            "PSEN1":  ["Amyloid-beta production", "Gamma-secretase complex"],
+            "PSEN2":  ["Amyloid-beta production", "Gamma-secretase complex"],
+            "APOE":   ["Lipid metabolism", "Amyloid-beta clearance"],
+            "CHAT":   ["Cholinergic signaling", "Neurotransmitter synthesis"],
+            "ACHE":   ["Cholinergic signaling", "Acetylcholine degradation"],
+            "GRIN1":  ["NMDA receptor signaling", "Glutamate signaling", "Synaptic plasticity"],
+            "GRIN2A": ["NMDA receptor signaling", "Glutamate signaling", "Synaptic plasticity"],
+            "GRIN2B": ["NMDA receptor signaling", "Glutamate signaling", "Synaptic plasticity"],
+            "GRIN2C": ["NMDA receptor signaling", "Glutamate signaling"],
+            "GRIN2D": ["NMDA receptor signaling", "Glutamate signaling"],
+            "GRIN3A": ["NMDA receptor signaling", "Synaptic plasticity"],
+            "GRIN3B": ["NMDA receptor signaling"],
+            # ── Cardiology / vascular ─────────────────────────────────────
+            "PDE5A":  ["PDE5 signaling", "cGMP-PKG signaling", "Nitric oxide signaling",
+                       "Pulmonary vascular remodeling", "Vasodilation"],
+            "NOS3":   ["Nitric oxide signaling", "Vasodilation", "Endothelial function"],
+            "NOS1":   ["Nitric oxide signaling", "Neurotransmitter synthesis"],
+            "GUCY1A1":["cGMP-PKG signaling", "Nitric oxide signaling"],
+            "GUCY1B1":["cGMP-PKG signaling", "Nitric oxide signaling"],
+            "PRKG1":  ["cGMP-PKG signaling", "Vasodilation"],
+            "EDNRA":  ["Endothelin signaling", "Pulmonary vascular remodeling"],
+            "EDNRB":  ["Endothelin signaling", "Pulmonary vascular remodeling"],
+            "EDN1":   ["Endothelin signaling", "Vasoconstriction"],
+            "PTGIS":  ["Prostacyclin signaling", "Platelet aggregation"],
+            "TBXA2R": ["Arachidonic acid metabolism", "Platelet aggregation"],
+            "ADRB1":  ["Beta-adrenergic signaling", "Cardiac function"],
+            "ADRB2":  ["Beta-adrenergic signaling", "Vasodilation", "Bronchodilation"],
+            "ADRB3":  ["Beta-adrenergic signaling", "Lipolysis"],
+            "PTGS1":  ["COX pathway", "Platelet aggregation", "Arachidonic acid metabolism"],
+            "PTGS2":  ["COX pathway", "Inflammatory response", "Arachidonic acid metabolism"],
+            "TBXAS1": ["Arachidonic acid metabolism", "Platelet aggregation"],
+            "HMGCR":  ["HMGCR pathway", "Cholesterol metabolism", "Lipid metabolism"],
+            "LDLR":   ["Cholesterol metabolism", "LDL receptor signaling"],
+            "PCSK9":  ["Cholesterol metabolism", "LDL receptor signaling"],
+            "APOB":   ["Lipid metabolism", "LDL transport"],
+            "LPA":    ["Lipoprotein metabolism", "Coagulation cascade"],
+            "ACE":    ["Renin-angiotensin system", "Blood pressure regulation"],
+            "AGT":    ["Renin-angiotensin system", "Blood pressure regulation"],
+            "AGTR1":  ["Renin-angiotensin system", "Vasoconstriction"],
+            "ITGA2B": ["Platelet aggregation", "Coagulation cascade"],
+            "F2":     ["Coagulation cascade", "Thrombin signaling"],
+            "VWF":    ["Coagulation cascade", "Platelet adhesion"],
+            # ── Immunology / inflammation ─────────────────────────────────
+            "MS4A1":  ["B-cell receptor signaling", "B-cell differentiation"],
+            "CD20":   ["B-cell receptor signaling", "B-cell differentiation"],
+            "CD79A":  ["B-cell receptor signaling"],
+            "CD79B":  ["B-cell receptor signaling"],
+            "BLNK":   ["B-cell receptor signaling"],
+            "BTK":    ["B-cell receptor signaling", "B-cell differentiation"],
+            "CD4":    ["T-cell receptor signaling", "Adaptive immunity"],
+            "CD8A":   ["T-cell receptor signaling", "Cytotoxic T-cell"],
+            "CTLA4":  ["T-cell checkpoint signaling"],
+            "PDCD1":  ["T-cell checkpoint signaling"],
+            "TNF":    ["TNF signaling", "NF-κB signaling", "Inflammatory response"],
+            "IL6":    ["JAK-STAT signaling", "Cytokine signaling", "IL-6 signaling"],
+            "IL1B":   ["Inflammatory response", "NF-κB signaling"],
+            "NFKB1":  ["NF-κB signaling", "Inflammatory response"],
+            "JAK1":   ["JAK-STAT signaling"],
+            "JAK2":   ["JAK-STAT signaling"],
+            "STAT3":  ["JAK-STAT signaling", "IL-6 signaling"],
+            "TGFB1":  ["TGF-beta signaling", "Inflammatory response"],
+            "HLA-B":  ["Immune presentation", "Adaptive immunity"],
+            # ── Oncology ─────────────────────────────────────────────────
+            "EGFR":   ["EGFR signaling", "MAPK signaling", "PI3K-Akt signaling"],
+            "ERBB2":  ["EGFR signaling", "HER2 signaling"],
+            "KRAS":   ["RAS signaling", "MAPK signaling"],
+            "BRAF":   ["MAPK signaling", "RAS signaling"],
+            "PIK3CA": ["PI3K-Akt signaling", "mTOR signaling"],
+            "PTEN":   ["PI3K-Akt signaling", "Cell growth regulation"],
+            "MTOR":   ["mTOR signaling", "Autophagy", "Protein synthesis"],
+            "TP53":   ["p53 signaling", "Apoptosis", "DNA damage response"],
+            "VEGFA":  ["Angiogenesis", "VEGF signaling"],
+            "VEGFR2": ["Angiogenesis", "VEGF signaling"],
+            "MYC":    ["Cell cycle regulation", "Oncogene signaling"],
+            "CCND1":  ["Cell cycle regulation", "CDK signaling"],
+            "CDK4":   ["Cell cycle regulation", "CDK signaling"],
+            "CDK6":   ["Cell cycle regulation", "CDK signaling"],
+            "RB1":    ["Cell cycle regulation", "Tumor suppressor"],
+            "BRCA1":  ["DNA damage response", "DNA repair"],
+            "BRCA2":  ["DNA damage response", "DNA repair"],
+            "ESR1":   ["Estrogen receptor signaling", "Nuclear receptor signaling",
+                       "Steroid hormone biosynthesis"],
+            "ESR2":   ["Estrogen receptor signaling", "Nuclear receptor signaling"],
+            "PGR":    ["Progesterone signaling", "Nuclear receptor signaling"],
+            "CRBN":   ["Protein degradation", "Ubiquitin-proteasome system",
+                       "IKZF1/3 degradation"],
+            "CUL4A":  ["Protein degradation", "Ubiquitin-proteasome system"],
+            "DDB1":   ["Protein degradation", "Ubiquitin-proteasome system"],
+            "RBX1":   ["Ubiquitin-proteasome system"],
+            "FGFR2":  ["FGFR signaling", "MAPK signaling"],
+            "HDAC1":  ["Histone modification", "Epigenetic regulation"],
+            "HDAC2":  ["Histone modification", "Epigenetic regulation"],
+            "HDAC6":  ["Histone modification", "Epigenetic regulation"],
+            # ── Metabolic / PCOS / diabetes ───────────────────────────────
+            "INSR":   ["Insulin signaling", "Glucose metabolism"],
+            "IRS1":   ["Insulin signaling", "PI3K-Akt signaling"],
+            "IRS2":   ["Insulin signaling", "PI3K-Akt signaling"],
+            "PRKAB1": ["AMPK signaling", "Glucose metabolism"],
+            "PRKAB2": ["AMPK signaling", "Glucose metabolism"],
+            "PRKAA1": ["AMPK signaling", "Gluconeogenesis"],
+            "PRKAA2": ["AMPK signaling", "Gluconeogenesis"],
+            "G6PC":   ["Gluconeogenesis", "Glucose metabolism"],
+            "PCK1":   ["Gluconeogenesis", "Glucose metabolism"],
+            "SLC2A4": ["Glucose metabolism", "GLUT4 transport"],
+            "PPARG":  ["PPAR signaling", "Adipogenesis", "Glucose metabolism"],
+            "PPARA":  ["PPAR signaling", "Fatty acid oxidation"],
+            "LHCGR":  ["Steroid hormone biosynthesis", "Gonadotropin signaling"],
+            "FSHR":   ["Steroid hormone biosynthesis", "Gonadotropin signaling"],
+            "CYP17A1":["Steroid hormone biosynthesis", "Androgen receptor signaling"],
+            "CYP19A1":["Steroid hormone biosynthesis", "Estrogen receptor signaling"],
+            "SHBG":   ["Steroid hormone biosynthesis", "Androgen binding"],
+            "AMH":    ["Gonadotropin signaling", "Ovarian function"],
+            # ── Hair follicle / alopecia ──────────────────────────────────
+            "SRD5A1": ["5-alpha reductase pathway", "Androgen receptor signaling",
+                       "Hair follicle cycling", "Steroid hormone biosynthesis"],
+            "SRD5A2": ["5-alpha reductase pathway", "Androgen receptor signaling",
+                       "Hair follicle cycling"],
+            "AR":     ["Androgen receptor signaling", "Hair follicle cycling"],
+            "KCNJ8":  ["Potassium channel signaling", "Vasodilation", "Hair follicle cycling"],
+            "KCNJ11": ["Potassium channel signaling", "Vasodilation"],
+            "ABCC9":  ["Potassium channel signaling", "Vasodilation"],
+            "CYP2C9": ["Drug metabolism", "CYP oxidation"],
+            "CYP2D6": ["Drug metabolism", "CYP oxidation"],
+            # ── Lysosomal / rare diseases ─────────────────────────────────
+            "ATP7B":  ["Copper metabolism", "Metal ion homeostasis"],
+            "NPC1":   ["Cholesterol trafficking", "Lysosomal function"],
+            "NPC2":   ["Cholesterol metabolism", "Lipid transport"],
+            "DMD":    ["Dystrophin-glycoprotein complex", "Muscle fiber integrity"],
+            "CFTR":   ["Chloride ion transport", "CFTR trafficking"],
+            "HEXA":   ["Lysosomal function", "Sphingolipid metabolism"],
+            "HEXB":   ["Lysosomal function", "Sphingolipid metabolism"],
+            "GALC":   ["Lysosomal function", "Sphingolipid metabolism"],
+            "ARSA":   ["Lysosomal function", "Sulfatide metabolism"],
+            "ASAH1":  ["Sphingolipid metabolism", "Lysosomal function"],
+            # ── Misc signaling ────────────────────────────────────────────
+            "HGF":    ["MET signaling", "Cell growth"],
+            "PLCG1":  ["Phospholipase C signaling", "IP3 signaling"],
+            "SLC6A12":["Neurotransmitter transport"],
+            "CDH13":  ["Cell adhesion", "Cardiovascular function"],
+            "NAT2":   ["Drug metabolism", "Acetylation"],
+            "CFLAR":  ["Apoptosis", "FLIP signaling"],
+        }
+
+        pathways: Set[str] = set()
+        for gene in genes:
+            if gene in pathway_map:
+                pathways.update(pathway_map[gene])
+        return sorted(pathways) if pathways else ["General cellular signaling"]
 
     async def close(self):
         if self.session and not self.session.closed:
             await self.session.close()
             logger.info("🔒 Session closed")
+        if self._pathway_mapper:
+            await self._pathway_mapper.close()
+            logger.info("🔒 Pathway mapper closed")
 
 
 DataFetcher = ProductionDataFetcher
