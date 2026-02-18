@@ -1,0 +1,90 @@
+{
+  "true_positives": [
+    {
+      "drug": "Thalidomide",
+      "disease": "Multiple Myeloma",
+      "score": 0.17128108245043483,
+      "expected_range": [
+        0.5,
+        0.75
+      ],
+      "out_of_range": true
+    },
+    {
+      "drug": "Minoxidil",
+      "disease": "Alopecia (Hair Loss)",
+      "score": 0.42682484759115635,
+      "expected_range": [
+        0.3,
+        0.6
+      ],
+      "confidence": "high"
+    }
+  ],
+  "false_negatives": [
+    {
+      "drug": "Sildenafil",
+      "disease": "Pulmonary Arterial Hypertension",
+      "reason": "not_in_top_50"
+    },
+    {
+      "drug": "Metformin",
+      "disease": "Polycystic Ovary Syndrome",
+      "reason": "not_in_top_50"
+    },
+    {
+      "drug": "Aspirin",
+      "disease": "Cardiovascular Disease Prevention",
+      "reason": "analysis_failed"
+    },
+    {
+      "drug": "Rituximab",
+      "disease": "Rheumatoid Arthritis",
+      "reason": "not_in_top_50"
+    },
+    {
+      "drug": "Propranolol",
+      "disease": "Essential Tremor",
+      "reason": "not_in_top_50"
+    },
+    {
+      "drug": "Amantadine",
+      "disease": "Parkinson Disease",
+      "reason": "not_in_top_50"
+    },
+    {
+      "drug": "Raloxifene",
+      "disease": "Breast Cancer Prevention",
+      "reason": "not_in_top_50"
+    },
+    {
+      "drug": "Finasteride",
+      "disease": "Male Pattern Baldness",
+      "reason": "analysis_failed"
+    }
+  ],
+  "true_negatives": [
+    {
+      "drug": "Aspirin",
+      "disease": "Alzheimer Disease",
+      "score": 0.08496068846724732
+    },
+    {
+      "drug": "Metformin",
+      "disease": "Acute Myeloid Leukemia",
+      "score": 0.0,
+      "not_found": true
+    },
+    {
+      "drug": "Ibuprofen",
+      "disease": "Parkinson Disease",
+      "score": 0.0,
+      "not_found": true
+    }
+  ],
+  "false_positives": [],
+  "scores": [
+    0.17128108245043483,
+    0.42682484759115635
+  ]
+}

@@ -48,6 +48,7 @@ source venv/bin/activate
 # Install backend dependencies
 echo "Installing backend dependencies..."
 pip install -q -r requirements.txt
+pip install -q -r requirements_clinical.txt
 
 echo "✅ Backend setup complete!"
 
