@@ -1,90 +1,334 @@
 {
-  "true_positives": [
-    {
-      "drug": "Thalidomide",
-      "disease": "Multiple Myeloma",
-      "score": 0.17128108245043483,
-      "expected_range": [
-        0.5,
-        0.75
-      ],
-      "out_of_range": true
-    },
-    {
-      "drug": "Minoxidil",
-      "disease": "Alopecia (Hair Loss)",
-      "score": 0.42682484759115635,
-      "expected_range": [
-        0.3,
-        0.6
-      ],
-      "confidence": "high"
-    }
-  ],
-  "false_negatives": [
+  "test_cases": [
     {
       "drug": "Sildenafil",
-      "disease": "Pulmonary Arterial Hypertension",
-      "reason": "not_in_top_50"
-    },
-    {
-      "drug": "Metformin",
-      "disease": "Polycystic Ovary Syndrome",
-      "reason": "not_in_top_50"
-    },
-    {
-      "drug": "Aspirin",
-      "disease": "Cardiovascular Disease Prevention",
-      "reason": "analysis_failed"
+      "disease": "pulmonary arterial hypertension",
+      "category": "mechanism_congruent",
+      "status": "found",
+      "score": 0.48699916096958434,
+      "in_range": true,
+      "expected_range": [
+        0.4,
+        0.85
+      ],
+      "confidence": "high",
+      "shared_genes": [
+        "NOS3",
+        "PDE5A",
+        "VEGFA"
+      ],
+      "shared_pathways": [
+        "PDE5 signaling",
+        "Pulmonary vascular remodeling",
+        "Vasodilation",
+        "Nitric oxide signaling",
+        "cGMP-PKG signaling"
+      ],
+      "above_range": false,
+      "below_range": false
     },
     {
       "drug": "Rituximab",
-      "disease": "Rheumatoid Arthritis",
-      "reason": "not_in_top_50"
-    },
-    {
-      "drug": "Propranolol",
-      "disease": "Essential Tremor",
-      "reason": "not_in_top_50"
-    },
-    {
-      "drug": "Amantadine",
-      "disease": "Parkinson Disease",
-      "reason": "not_in_top_50"
-    },
-    {
-      "drug": "Raloxifene",
-      "disease": "Breast Cancer Prevention",
-      "reason": "not_in_top_50"
-    },
-    {
-      "drug": "Finasteride",
-      "disease": "Male Pattern Baldness",
-      "reason": "analysis_failed"
-    }
-  ],
-  "true_negatives": [
-    {
-      "drug": "Aspirin",
-      "disease": "Alzheimer Disease",
-      "score": 0.08496068846724732
+      "disease": "rheumatoid arthritis",
+      "category": "mechanism_congruent",
+      "status": "found",
+      "score": 0.48072560444652745,
+      "in_range": true,
+      "expected_range": [
+        0.4,
+        0.9
+      ],
+      "confidence": "high",
+      "shared_genes": [
+        "JAK2",
+        "FCGR2A",
+        "MS4A1",
+        "IL6",
+        "CXCL13"
+      ],
+      "shared_pathways": [
+        "B-cell receptor signaling",
+        "B-cell differentiation",
+        "Inflammatory response",
+        "JAK-STAT signaling"
+      ],
+      "above_range": false,
+      "below_range": false
     },
     {
       "drug": "Metformin",
-      "disease": "Acute Myeloid Leukemia",
-      "score": 0.0,
-      "not_found": true
+      "disease": "polycystic ovary syndrome",
+      "category": "mechanism_congruent",
+      "status": "found",
+      "score": 0.07647210668216603,
+      "in_range": false,
+      "expected_range": [
+        0.35,
+        0.8
+      ],
+      "confidence": "low",
+      "shared_genes": [
+        "PPARG",
+        "PTEN"
+      ],
+      "shared_pathways": [],
+      "above_range": false,
+      "below_range": true
+    },
+    {
+      "drug": "Imatinib",
+      "disease": "pulmonary arterial hypertension",
+      "category": "mechanism_congruent",
+      "status": "found",
+      "score": 0.1787635677985248,
+      "in_range": false,
+      "expected_range": [
+        0.3,
+        0.7
+      ],
+      "confidence": "medium",
+      "shared_genes": [
+        "BIRC5",
+        "ABL1",
+        "PDGFRA",
+        "CSF1R",
+        "BCR",
+        "PDGFRB",
+        "KIT"
+      ],
+      "shared_pathways": [],
+      "above_range": false,
+      "below_range": true
+    },
+    {
+      "drug": "Aspirin",
+      "disease": "coronary artery disease",
+      "category": "empirical",
+      "status": "found",
+      "score": 0.3355299985363554,
+      "in_range": true,
+      "expected_range": [
+        0.2,
+        0.7
+      ],
+      "confidence": "medium",
+      "shared_genes": [
+        "ITGA2B",
+        "PTGS1",
+        "NAT2",
+        "TGFB1",
+        "ACE",
+        "CDH13",
+        "LPA",
+        "PTGS2",
+        "PPARG",
+        "HMGCR"
+      ],
+      "shared_pathways": [
+        "Lipoprotein metabolism",
+        "Inflammatory response",
+        "Coagulation cascade"
+      ],
+      "above_range": false,
+      "below_range": false
+    },
+    {
+      "drug": "Propranolol",
+      "disease": "essential tremor",
+      "category": "empirical",
+      "status": "false_negative",
+      "reason": "not in top 100",
+      "score": null,
+      "top_3": [
+        [
+          "PROPOFOL",
+          0.618
+        ],
+        [
+          "METHARBITAL",
+          0.605
+        ],
+        [
+          "BUTALBITAL",
+          0.605
+        ]
+      ],
+      "expected_range": [
+        0.1,
+        0.55
+      ]
+    },
+    {
+      "drug": "Minoxidil",
+      "disease": "alopecia",
+      "category": "empirical",
+      "status": "found",
+      "score": 0.3128248475911563,
+      "in_range": true,
+      "expected_range": [
+        0.15,
+        0.55
+      ],
+      "confidence": "medium",
+      "shared_genes": [
+        "ABCC9"
+      ],
+      "shared_pathways": [
+        "Vasodilation",
+        "Potassium channel signaling",
+        "Hair follicle cycling"
+      ],
+      "above_range": false,
+      "below_range": false
+    }
+  ],
+  "tuning_cases": [
+    {
+      "drug": "Thalidomide",
+      "disease": "multiple myeloma",
+      "category": "mechanism_congruent",
+      "status": "found",
+      "score": 0.4433542531821421,
+      "in_range": true,
+      "expected_range": [
+        0.35,
+        0.75
+      ],
+      "confidence": "high",
+      "shared_genes": [
+        "CRBN",
+        "CUL4A",
+        "PTGS2",
+        "HGF",
+        "DDB1",
+        "RBX1",
+        "FGFR2"
+      ],
+      "shared_pathways": [
+        "IKZF1/3 degradation",
+        "Protein degradation",
+        "Ubiquitin-proteasome system",
+        "MAPK signaling"
+      ],
+      "above_range": false,
+      "below_range": false
+    },
+    {
+      "drug": "Amantadine",
+      "disease": "Parkinson disease",
+      "category": "mechanism_congruent",
+      "status": "false_negative",
+      "reason": "not in top 100",
+      "score": null,
+      "top_3": [
+        [
+          "APOMORPHINE",
+          0.312
+        ],
+        [
+          "OLANZAPINE",
+          0.289
+        ],
+        [
+          "PERPHENAZINE",
+          0.278
+        ]
+      ],
+      "expected_range": [
+        0.35,
+        0.85
+      ]
+    },
+    {
+      "drug": "Raloxifene",
+      "disease": "breast carcinoma",
+      "category": "mechanism_congruent",
+      "status": "found",
+      "score": 0.25146242785956024,
+      "in_range": false,
+      "expected_range": [
+        0.4,
+        0.85
+      ],
+      "confidence": "medium",
+      "shared_genes": [
+        "ESR1"
+      ],
+      "shared_pathways": [
+        "Steroid hormone biosynthesis",
+        "Estrogen receptor signaling",
+        "Nuclear receptor signaling"
+      ],
+      "above_range": false,
+      "below_range": true
+    },
+    {
+      "drug": "Finasteride",
+      "disease": "alopecia",
+      "category": "mechanism_congruent",
+      "status": "found",
+      "score": 0.426374040366923,
+      "in_range": false,
+      "expected_range": [
+        0.5,
+        0.9
+      ],
+      "confidence": "high",
+      "shared_genes": [
+        "SRD5A2",
+        "SRD5A1",
+        "AR"
+      ],
+      "shared_pathways": [
+        "5-alpha reductase pathway",
+        "Androgen receptor signaling",
+        "Hair follicle cycling"
+      ],
+      "above_range": false,
+      "below_range": true
+    }
+  ],
+  "negative_cases": [
+    {
+      "drug": "Aspirin",
+      "disease": "Alzheimer disease",
+      "status": "true_negative_low_score",
+      "score": 0.08496068846724732,
+      "expected_max": 0.3
+    },
+    {
+      "drug": "Metformin",
+      "disease": "acute myeloid leukemia",
+      "status": "false_positive",
+      "score": 0.36663862922467344,
+      "expected_max": 0.35
     },
     {
       "drug": "Ibuprofen",
-      "disease": "Parkinson Disease",
-      "score": 0.0,
-      "not_found": true
+      "disease": "Parkinson disease",
+      "status": "true_negative_not_found",
+      "score": 0.0
+    },
+    {
+      "drug": "Warfarin",
+      "disease": "multiple myeloma",
+      "status": "true_negative_not_found",
+      "score": 0.0
+    },
+    {
+      "drug": "Omeprazole",
+      "disease": "Parkinson disease",
+      "status": "true_negative_not_found",
+      "score": 0.0
     }
   ],
-  "false_positives": [],
-  "scores": [
-    0.17128108245043483,
-    0.42682484759115635
-  ]
+  "metrics": {
+    "sensitivity": 0.8571428571428571,
+    "specificity": 0.8,
+    "precision": 0.8571428571428571,
+    "accuracy": 0.8333333333333334,
+    "random_baseline_sensitivity": 0.2,
+    "lift_over_baseline": 0.657142857142857
+  },
+  "passed": true
 }
