@@ -396,7 +396,7 @@ async def run_validation() -> bool:
         "n_negative_controls": n_neg,
     }
 
-    out_file = Path(__file__).parent / "validation_results_v2.json"
+    out_file = Path(__file__).parent / "validation_results.json"
     with open(out_file, "w") as f:
         json.dump(output, f, indent=2, default=str)
     print(f"\n  Results saved → {out_file}")
