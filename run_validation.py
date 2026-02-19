@@ -210,7 +210,7 @@ async def run_validation() -> bool:
     pipeline = ProductionPipeline()
 
     # Ensure drugs cache is populated
-    await pipeline.data_fetcher.fetch_approved_drugs(limit=500)
+    await pipeline.data_fetcher.fetch_approved_drugs(limit=3000)
 
     # Initialise baselines
     cosine_baseline = CosineSimilarityBaseline(use_tfidf=True)

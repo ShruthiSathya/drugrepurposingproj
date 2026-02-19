@@ -1,11 +1,11 @@
 """
-FIXED PRODUCTION PIPELINE ORCHESTRATOR
-=======================================
-Key fixes vs original:
-1. Calls _fetch_pubmed_score() for each drug-disease pair and passes the
-   result into scorer as external_literature_score — no hardcoded values.
-2. PubMed lookup is batched/cached to avoid rate-limiting.
-3. CATEGORY BREAKDOWN added to output metadata for validation analysis.
+FIXED PRODUCTION PIPELINE ORCHESTRATOR v3
+==========================================
+Key fixes vs v2:
+1. fetch_approved_drugs(limit=3000) — fetches ALL ChEMBL approved drugs
+   instead of a random 500 sample.
+2. PubMed lookup batched/cached to avoid rate-limiting.
+3. CATEGORY BREAKDOWN in output metadata for validation analysis.
 """
 
 import asyncio
@@ -39,18 +39,9 @@ class ProductionPipeline:
         self._pubmed_cache: Dict[str, float] = {}
         self._pubmed_session: Optional[aiohttp.ClientSession] = None
 
-    # ── PubMed helper (live, cached per call) ─────────────────────────────────
+    # ── PubMed helper ─────────────────────────────────────────────────────────
     async def _fetch_pubmed_score(self, drug_name: str, disease_name: str) -> float:
-        """
-        Query PubMed for co-occurrence of drug + disease and return a
-        normalised 0-1 score.  Results are cached in-memory per session.
-
-        Score formula:
-          raw  = number of PubMed hits (capped at 200)
-          score = log10(raw + 1) / log10(201)   → roughly 0-1
-        """
         import math
-
         key = f"{drug_name.lower()}|{disease_name.lower()}"
         if key in self._pubmed_cache:
             return self._pubmed_cache[key]
@@ -60,7 +51,6 @@ class ProductionPipeline:
                 self._pubmed_session = aiohttp.ClientSession(
                     timeout=aiohttp.ClientTimeout(total=15)
                 )
-
             params = {
                 "db":      "pubmed",
                 "term":    f'"{drug_name}"[Title/Abstract] AND "{disease_name}"[Title/Abstract]',
@@ -73,13 +63,11 @@ class ProductionPipeline:
                     return 0.0
                 data  = await resp.json()
                 count = int(data.get("esearchresult", {}).get("count", 0))
-
         except Exception as e:
             logger.debug(f"PubMed lookup failed for {drug_name}/{disease_name}: {e}")
             self._pubmed_cache[key] = 0.0
             return 0.0
 
-        # Normalise: 0 hits → 0.0, ~200 hits → ~1.0
         score = math.log10(count + 1) / math.log10(201)
         score = min(score, 1.0)
         self._pubmed_cache[key] = score
@@ -124,10 +112,10 @@ class ProductionPipeline:
         logger.info(f"   Pathways:    {len(disease_data['pathways'])}")
         logger.info(f"   Rare disease:{disease_data.get('is_rare', False)}")
 
-        # STEP 2: Approved drugs
+        # STEP 2: Approved drugs — fetch ALL, not just 500
         logger.info("\n💊 Step 2/5: Fetching approved drugs from ChEMBL...")
         if self.drugs_cache is None:
-            drugs_data       = await self.data_fetcher.fetch_approved_drugs(limit=500)
+            drugs_data       = await self.data_fetcher.fetch_approved_drugs(limit=3000)
             self.drugs_cache = drugs_data
             logger.info(f"✅ Fetched {len(drugs_data)} approved drugs (cached)")
         else:
@@ -147,8 +135,6 @@ class ProductionPipeline:
         logger.info("\n🎯 Step 4/5: Scoring drug-disease matches...")
         self.scorer = ProductionScorer(graph)
 
-        # Fetch PubMed scores concurrently for all drugs that pass a quick
-        # pre-filter (must have at least one target) to limit API calls.
         drugs_with_targets = [d for d in drugs_data if d.get("targets")]
         logger.info(
             f"   Fetching PubMed co-occurrence scores for "
@@ -224,7 +210,7 @@ class ProductionPipeline:
                 "analysis_time_seconds":round(elapsed, 2),
                 "data_sources": [
                     "OpenTargets Platform (disease-gene associations)",
-                    "ChEMBL (approved drugs)",
+                    "ChEMBL (approved drugs — full max_phase=4 set)",
                     "DGIdb (drug-gene interactions)",
                     "PubMed E-utilities (literature co-occurrence)",
                     "ClinicalTrials.gov (active trials)",
@@ -258,7 +244,6 @@ class ProductionPipeline:
         logger.info("🔒 Pipeline closed")
 
 
-# Convenience wrapper
 async def analyze(
     disease_name: str, min_score: float = 0.2, max_results: int = 20
 ) -> Dict:
