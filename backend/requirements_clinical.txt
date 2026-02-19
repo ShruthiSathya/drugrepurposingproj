@@ -1,6 +1,0 @@
-# Additional requirements for clinical validation
-# Install with: pip install --break-system-packages -r requirements_clinical.txt
-
-# We only need these two (biopython and pymed are optional/not needed)
-aiohttp>=3.10.5
-certifi>=2024.8.30

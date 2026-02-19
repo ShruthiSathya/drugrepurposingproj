@@ -16,13 +16,13 @@
       "confidence": "medium",
       "shared_genes": [
         "PDE5A",
-        "NOS3",
-        "VEGFA"
+        "VEGFA",
+        "NOS3"
       ],
       "shared_pathways": [
-        "Pulmonary vascular remodeling",
+        "Nitric oxide signaling",
         "cGMP-PKG signaling",
-        "Nitric oxide signaling"
+        "Pulmonary vascular remodeling"
       ]
     },
     {
@@ -40,20 +40,20 @@
       "below_range": false,
       "confidence": "high",
       "shared_genes": [
-        "PDGFRA",
-        "KIT",
-        "PDGFRB",
+        "ABL1",
         "BIRC5",
-        "CSF1R",
+        "PDGFRB",
+        "KIT",
+        "PDGFRA",
         "BCR",
-        "ABL1"
+        "CSF1R"
       ],
       "shared_pathways": [
         "Pulmonary vascular remodeling",
-        "Tyrosine kinase signaling",
+        "PDGFR signaling",
         "BCR-ABL signaling",
         "Receptor tyrosine kinase",
-        "PDGFR signaling"
+        "Tyrosine kinase signaling"
       ]
     },
     {
@@ -97,16 +97,16 @@
       "below_range": false,
       "confidence": "high",
       "shared_genes": [
-        "IL6",
         "MS4A1",
-        "CXCL13",
+        "IL6",
+        "FCGR2A",
         "JAK2",
-        "FCGR2A"
+        "CXCL13"
       ],
       "shared_pathways": [
-        "B-cell receptor signaling",
+        "B-cell differentiation",
         "JAK-STAT signaling",
-        "B-cell differentiation"
+        "B-cell receptor signaling"
       ]
     },
     {
@@ -124,19 +124,19 @@
       "below_range": false,
       "confidence": "high",
       "shared_genes": [
-        "MET",
-        "ERBB3",
-        "ERBB2",
-        "RAD51C",
-        "EGFR",
-        "ESR1",
-        "ARID1A",
-        "KRAS",
         "AKT2",
+        "EGFR",
+        "KRAS",
         "PIK3CA",
-        "HGF",
+        "ERBB3",
+        "MET",
         "EPCAM",
-        "PTEN"
+        "ERBB2",
+        "ARID1A",
+        "PTEN",
+        "HGF",
+        "ESR1",
+        "RAD51C"
       ],
       "shared_pathways": [
         "HER2 signaling",
@@ -158,24 +158,24 @@
       "below_range": false,
       "confidence": "high",
       "shared_genes": [
-        "KIT",
         "EGFR",
-        "EML4",
-        "PDGFRB",
-        "VEGFA",
-        "NF2",
-        "KRAS",
-        "TP53",
-        "NF1",
-        "ALK",
         "PIK3CA",
-        "HRAS",
+        "NF1",
+        "TP53",
+        "PDGFRB",
+        "EML4",
+        "KIT",
+        "ALK",
         "BRAF",
-        "PTEN"
+        "VEGFA",
+        "PTEN",
+        "KRAS",
+        "NF2",
+        "HRAS"
       ],
       "shared_pathways": [
-        "MAPK signaling",
-        "EGFR signaling"
+        "EGFR signaling",
+        "MAPK signaling"
       ]
     },
     {
@@ -193,21 +193,21 @@
       "below_range": true,
       "confidence": "medium",
       "shared_genes": [
-        "MET",
-        "ERBB3",
-        "ROS1",
-        "ERBB2",
+        "FLT4",
         "EGFR",
-        "KRAS",
+        "PIK3CA",
+        "ERBB3",
+        "MET",
         "ERBB4",
+        "CHEK2",
+        "FGFR3",
+        "ERBB2",
         "SMO",
         "ALK",
-        "PIK3CA",
-        "FGFR3",
-        "CHEK2",
-        "FLT4",
         "BRAF",
-        "PTEN"
+        "PTEN",
+        "KRAS",
+        "ROS1"
       ],
       "shared_pathways": []
     },
@@ -226,56 +226,56 @@
       "below_range": false,
       "confidence": "high",
       "shared_genes": [
-        "NDUFS6",
-        "NDUFS7",
-        "NDUFB4",
-        "NDUFV2",
-        "NDUFS8",
-        "NDUFA9",
-        "MT-ND1",
-        "NDUFS5",
-        "NDUFAB1",
-        "NDUFB7",
-        "NDUFA10",
-        "NDUFB1",
-        "NDUFA1",
-        "NDUFB10",
-        "NDUFB9",
-        "MT-ND2",
         "NDUFAF4",
-        "NDUFAF3",
-        "NDUFS3",
-        "NDUFA8",
-        "NDUFV3",
-        "NDUFA13",
-        "NDUFA6",
-        "AR",
-        "NDUFB11",
-        "NDUFB6",
-        "NDUFB8",
-        "NDUFS4",
-        "NDUFB3",
-        "MT-ND4L",
-        "MT-ND6",
-        "NDUFA5",
-        "NDUFB5",
-        "NDUFAF1",
-        "MT-ND5",
-        "GPD2",
-        "NDUFC2",
-        "NDUFA2",
-        "MT-ND4",
-        "NDUFS1",
+        "NDUFB10",
         "NDUFA7",
-        "NDUFS2",
-        "NDUFC1",
+        "NDUFC2",
+        "NDUFB6",
+        "MT-ND1",
         "NDUFA11",
-        "NDUFAF2",
-        "MT-ND3",
+        "NDUFA1",
+        "MT-ND4L",
+        "NDUFA6",
         "NDUFA3",
-        "NDUFA12",
+        "NDUFB11",
+        "NDUFS5",
+        "MT-ND6",
+        "MT-ND2",
+        "NDUFA8",
+        "NDUFA13",
+        "NDUFB5",
+        "NDUFA10",
+        "AR",
+        "NDUFAF2",
+        "NDUFS7",
+        "NDUFAF3",
+        "MT-ND4",
         "NDUFV1",
-        "NDUFB2"
+        "NDUFS1",
+        "NDUFS4",
+        "GPD2",
+        "NDUFB8",
+        "NDUFS8",
+        "NDUFA12",
+        "NDUFV2",
+        "NDUFB7",
+        "NDUFA5",
+        "NDUFB9",
+        "NDUFC1",
+        "NDUFB2",
+        "NDUFB1",
+        "NDUFB4",
+        "NDUFAF1",
+        "NDUFV3",
+        "NDUFA2",
+        "NDUFA9",
+        "NDUFB3",
+        "MT-ND5",
+        "NDUFAB1",
+        "NDUFS2",
+        "NDUFS6",
+        "MT-ND3",
+        "NDUFS3"
       ],
       "shared_pathways": []
     },
@@ -297,8 +297,8 @@
         "PPARG"
       ],
       "shared_pathways": [
-        "PPAR signaling",
-        "Glucose metabolism"
+        "Glucose metabolism",
+        "PPAR signaling"
       ]
     },
     {
@@ -316,10 +316,10 @@
       "below_range": true,
       "confidence": "low",
       "shared_genes": [
-        "TNF",
         "NR3C2",
-        "AR",
         "PPARG",
+        "AR",
+        "TNF",
         "ADIPOQ"
       ],
       "shared_pathways": []
@@ -394,13 +394,13 @@
       "below_range": false,
       "confidence": "high",
       "shared_genes": [
-        "GRIN3A",
         "GRIN2D",
-        "GRIN1",
         "GRIN2A",
+        "GRIN1",
+        "GRIN2C",
         "GRIN2B",
-        "GRIN3B",
-        "GRIN2C"
+        "GRIN3A",
+        "GRIN3B"
       ],
       "shared_pathways": [
         "Synaptic plasticity",
@@ -449,13 +449,13 @@
       "below_range": true,
       "confidence": "medium",
       "shared_genes": [
-        "ACHE",
+        "APOE",
         "BCHE",
-        "APOE"
+        "ACHE"
       ],
       "shared_pathways": [
-        "Cholinergic signaling",
-        "Acetylcholine degradation"
+        "Acetylcholine degradation",
+        "Cholinergic signaling"
       ]
     },
     {
@@ -476,8 +476,8 @@
         "ABCC9"
       ],
       "shared_pathways": [
-        "Hair follicle cycling",
-        "Potassium channel signaling"
+        "Potassium channel signaling",
+        "Hair follicle cycling"
       ]
     },
     {
@@ -496,14 +496,14 @@
       "confidence": "high",
       "shared_genes": [
         "SRD5A1",
-        "SRD5A3",
         "SRD5A2",
-        "AR"
+        "AR",
+        "SRD5A3"
       ],
       "shared_pathways": [
+        "5-alpha reductase pathway",
         "Androgen receptor signaling",
-        "Hair follicle cycling",
-        "5-alpha reductase pathway"
+        "Hair follicle cycling"
       ]
     },
     {
@@ -599,10 +599,10 @@
       "below_range": true,
       "confidence": "low",
       "shared_genes": [
-        "DRD3",
-        "HTR2C",
         "SLC6A4",
-        "SLC6A2"
+        "SLC6A2",
+        "DRD3",
+        "HTR2C"
       ],
       "shared_pathways": []
     },
@@ -651,10 +651,10 @@
         "NOS3"
       ],
       "shared_pathways": [
-        "Endothelial function",
-        "Pulmonary vascular remodeling",
         "cGMP-PKG signaling",
-        "Nitric oxide signaling"
+        "Nitric oxide signaling",
+        "Endothelial function",
+        "Pulmonary vascular remodeling"
       ]
     },
     {
@@ -672,15 +672,15 @@
       "below_range": false,
       "confidence": "medium",
       "shared_genes": [
-        "FLT3",
-        "IKZF1",
-        "NFATC1",
-        "TLR4",
-        "NR3C1",
         "GATA3",
-        "DHFR",
         "ALOX5",
-        "TNFAIP3"
+        "IKZF1",
+        "DHFR",
+        "NR3C1",
+        "TLR4",
+        "TNFAIP3",
+        "NFATC1",
+        "FLT3"
       ],
       "shared_pathways": []
     },
@@ -699,9 +699,9 @@
       "below_range": true,
       "confidence": "low",
       "shared_genes": [
-        "ADRA2A",
         "ADRA2C",
-        "ADRA2B"
+        "ADRA2B",
+        "ADRA2A"
       ],
       "shared_pathways": []
     },
@@ -720,10 +720,10 @@
       "below_range": false,
       "confidence": "medium",
       "shared_genes": [
-        "OPRK1",
-        "ADH1C",
         "OPRM1",
-        "OPRD1"
+        "OPRD1",
+        "OPRK1",
+        "ADH1C"
       ],
       "shared_pathways": []
     },
@@ -742,43 +742,43 @@
       "below_range": false,
       "confidence": "high",
       "shared_genes": [
-        "GABRG3",
-        "GRIK4",
-        "SCN1A",
+        "SCN11A",
+        "GRIA1",
+        "GABRA1",
+        "GABRA4",
+        "GABRB2",
+        "SCN2A",
+        "GRIK2",
+        "GABRD",
+        "SCN3A",
+        "GRIK3",
+        "SCN9A",
         "GRIA3",
+        "GABRA3",
+        "GABRA5",
+        "GABRB3",
+        "CA4",
+        "SCN7A",
+        "GRIA2",
+        "SCN5A",
+        "GABRG3",
+        "GABRB1",
+        "GABRP",
+        "GABRA2",
+        "SCN4A",
+        "GABRG2",
+        "SCN8A",
+        "CA2",
+        "GABRG1",
+        "GABRA6",
+        "GABRQ",
+        "SCN10A",
+        "SCN1A",
+        "GRIK4",
         "GRIA4",
         "GRIK5",
-        "GABRG1",
-        "SCN4A",
-        "SCN10A",
-        "SCN3A",
-        "GRIA1",
-        "GRIK3",
-        "GABRQ",
-        "GABRA4",
-        "SCN2A",
-        "SCN5A",
-        "GRIA2",
-        "SCN9A",
-        "GABRB3",
-        "GABRD",
-        "GABRA1",
-        "GABRP",
-        "SCN7A",
-        "GABRA3",
-        "GABRE",
         "GRIK1",
-        "GABRA2",
-        "GABRA6",
-        "GABRB2",
-        "GABRA5",
-        "GABRG2",
-        "SCN11A",
-        "SCN8A",
-        "GRIK2",
-        "CA4",
-        "CA2",
-        "GABRB1"
+        "GABRE"
       ],
       "shared_pathways": []
     },
@@ -797,16 +797,16 @@
       "below_range": false,
       "confidence": "medium",
       "shared_genes": [
-        "TSC1",
-        "NRAS",
         "EGFR",
-        "MTOR",
-        "KRAS",
-        "TCF7L2",
-        "PPARG",
         "PIK3CA",
-        "MAP2K1",
-        "PTEN"
+        "TCF7L2",
+        "TSC1",
+        "PPARG",
+        "MTOR",
+        "NRAS",
+        "PTEN",
+        "KRAS",
+        "MAP2K1"
       ],
       "shared_pathways": []
     },
@@ -851,10 +851,10 @@
       "below_range": false,
       "confidence": "low",
       "shared_genes": [
-        "MMP7",
-        "MMP8",
         "MMP13",
-        "MMP1"
+        "MMP7",
+        "MMP1",
+        "MMP8"
       ],
       "shared_pathways": []
     },
@@ -873,16 +873,16 @@
       "below_range": false,
       "confidence": "medium",
       "shared_genes": [
-        "TUB",
-        "TUBB2A",
-        "TUBB",
-        "TUBB1",
-        "TUBB4A",
-        "TUBB3",
         "TUBB8",
-        "TUBB4B",
+        "TUB",
+        "TUBB1",
+        "TUBB6",
         "TUBB2B",
-        "TUBB6"
+        "TUBB2A",
+        "TUBB4A",
+        "TUBB",
+        "TUBB4B",
+        "TUBB3"
       ],
       "shared_pathways": []
     },
@@ -1054,8 +1054,18 @@
         "specificity": 0.8666666666666667,
         "precision": 0.5
       },
+      "jaccard": {
+        "sensitivity": 0.5882352941176471,
+        "specificity": 0.8,
+        "precision": 0.8695652173913043
+      },
+      "gene_count": {
+        "sensitivity": 0.5882352941176471,
+        "specificity": 0.8,
+        "precision": 0.8695652173913043
+      },
       "random": {
-        "sensitivity": 0.029411764705882353,
+        "sensitivity": 0.058823529411764705,
         "specificity": 1.0,
         "precision": 1.0
       }

@@ -1,0 +1,69 @@
+{
+  "point_estimates": {
+    "sensitivity": 0.5294117647058824,
+    "specificity": 0.8666666666666667,
+    "precision": 0.9,
+    "f1": 0.6666666666666667,
+    "auroc": 0.7529411764705882,
+    "auprc": 0.9286890573015083
+  },
+  "bootstrap_cis": {
+    "sensitivity": {
+      "mean": 0.5325452706198701,
+      "lower": 0.34782608695652173,
+      "upper": 0.6875
+    },
+    "specificity": {
+      "mean": 0.8648647486778712,
+      "lower": 0.6842105263157895,
+      "upper": 1.0
+    },
+    "precision": {
+      "mean": 0.8983143591595355,
+      "lower": 0.75,
+      "upper": 1.0
+    },
+    "f1": {
+      "mean": 0.6641202744432098,
+      "lower": 0.489795918367347,
+      "upper": 0.7936507936507937
+    },
+    "auroc": {
+      "mean": 0.7564693856532413,
+      "lower": 0.6153846153846154,
+      "upper": 0.8713235294117647
+    }
+  },
+  "platt_scaling": {
+    "A": 3.1394876530802596,
+    "B": 0.4182605544532549
+  },
+  "cohens_d": {
+    "d": 1.9215639822406054,
+    "interpretation": "large",
+    "tp_mean": 0.2954230955642904,
+    "tn_mean": 0.027473337399956506
+  },
+  "calibration_curve": [
+    {
+      "bin": "0.0-0.2",
+      "mean_predicted": 0.1,
+      "fraction_pos": 0.5757575757575758,
+      "count": 33
+    },
+    {
+      "bin": "0.2-0.4",
+      "mean_predicted": 0.30000000000000004,
+      "fraction_pos": 0.8571428571428571,
+      "count": 7
+    },
+    {
+      "bin": "0.4-0.6",
+      "mean_predicted": 0.5,
+      "fraction_pos": 1.0,
+      "count": 9
+    }
+  ],
+  "n_bootstrap": 1000,
+  "threshold": 0.15
+}

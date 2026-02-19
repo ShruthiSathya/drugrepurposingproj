@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-run_validation_v2.py
-====================
+run_validation.py
+=================
 Expanded validation with:
   - 34-case test set (up from 7)
   - 15 negative controls (up from 5)
-  - Three comparison baselines (cosine similarity, text-mining, random)
+  - Five comparison baselines (cosine similarity, text-mining, random, jaccard, gene-count)
   - Per-category sensitivity breakdown
   - Metformin/AML false-positive analysis
   - Outputs publication-ready JSON + text summary
@@ -29,7 +29,13 @@ from validation_dataset import (
     NEGATIVE_CONTROLS,
     get_validation_metrics_target,
 )
-from backend.pipeline.baselines import CosineSimilarityBaseline, TextMiningBaseline, RandomBaseline
+from backend.pipeline.baselines import (
+    CosineSimilarityBaseline,
+    TextMiningBaseline,
+    JaccardOverlapBaseline,
+    GeneCountBaseline,
+)
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _print_section(title: str) -> None:
@@ -129,6 +135,8 @@ async def _run_baselines_on_case(
     top_k: int,
     text_baseline: TextMiningBaseline,
     cosine_baseline: CosineSimilarityBaseline,
+    jaccard_baseline: JaccardOverlapBaseline,
+    gene_count_baseline: GeneCountBaseline,
 ) -> Dict[str, bool]:
     """Return dict[method_name -> found_bool] for a positive test case."""
     drug    = case["drug_name"]
@@ -144,19 +152,31 @@ async def _run_baselines_on_case(
     cosine_found = drug.lower() in top_cosine
 
     # Text-mining
-    text_score = await text_baseline.score(drug, disease)
+    await text_baseline.score(drug, disease)
     all_text = await text_baseline.score_all(drugs_data, disease)
     top_text_set = {r["drug_name"].lower() for r in all_text[:top_k]}
     text_found = drug.lower() in top_text_set
+
+    # Jaccard
+    jaccard_results = jaccard_baseline.score_all(drugs_data, disease_data or {})
+    top_jaccard = {r["drug_name"].lower() for r in jaccard_results[:top_k]}
+    jaccard_found = drug.lower() in top_jaccard
+
+    # Gene count
+    gene_count_results = gene_count_baseline.score_all(drugs_data, disease_data or {})
+    top_gene_count = {r["drug_name"].lower() for r in gene_count_results[:top_k]}
+    gene_count_found = drug.lower() in top_gene_count
 
     # Random (probabilistic)
     rand_p     = min(top_k / max(len(drugs_data), 1), 1.0)
     rand_found = random.random() < rand_p
 
     return {
-        "cosine":  cosine_found,
-        "text":    text_found,
-        "random":  rand_found,
+        "cosine":     cosine_found,
+        "text":       text_found,
+        "jaccard":    jaccard_found,
+        "gene_count": gene_count_found,
+        "random":     rand_found,
     }
 
 
@@ -167,11 +187,12 @@ async def _run_baselines_on_negative(
     top_k: int,
     text_baseline: TextMiningBaseline,
     cosine_baseline: CosineSimilarityBaseline,
+    jaccard_baseline: JaccardOverlapBaseline,
+    gene_count_baseline: GeneCountBaseline,
 ) -> Dict[str, bool]:
     """Return dict[method -> is_correctly_excluded_bool]."""
     drug    = neg["drug_name"]
     disease = neg["disease"]
-    exp_max = neg["expected_score_range"][1]
 
     all_gene_lists = [d.get("targets", []) for d in drugs_data]
     if disease_data:
@@ -185,10 +206,24 @@ async def _run_baselines_on_negative(
     top_text_set = {r["drug_name"].lower() for r in all_text[:top_k]}
     text_ok = drug.lower() not in top_text_set
 
+    jaccard_results = jaccard_baseline.score_all(drugs_data, disease_data or {})
+    top_jaccard = {r["drug_name"].lower() for r in jaccard_results[:top_k]}
+    jaccard_ok = drug.lower() not in top_jaccard
+
+    gene_count_results = gene_count_baseline.score_all(drugs_data, disease_data or {})
+    top_gene_count = {r["drug_name"].lower() for r in gene_count_results[:top_k]}
+    gene_count_ok = drug.lower() not in top_gene_count
+
     rand_p  = min(top_k / max(len(drugs_data), 1), 1.0)
     rand_ok = random.random() > rand_p
 
-    return {"cosine": cosine_ok, "text": text_ok, "random": rand_ok}
+    return {
+        "cosine":     cosine_ok,
+        "text":       text_ok,
+        "jaccard":    jaccard_ok,
+        "gene_count": gene_count_ok,
+        "random":     rand_ok,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -199,7 +234,7 @@ async def run_validation() -> bool:
     _print_section("NAVARA AI — EXPANDED VALIDATION v2")
     print(f"  Test set:         {len(KNOWN_REPURPOSING_CASES)} cases")
     print(f"  Negative controls:{len(NEGATIVE_CONTROLS)} cases")
-    print(f"  Baselines:        cosine similarity, text-mining, random")
+    print(f"  Baselines:        cosine similarity, text-mining, jaccard, gene-count, random")
 
     try:
         from backend.pipeline.production_pipeline import ProductionPipeline
@@ -213,13 +248,17 @@ async def run_validation() -> bool:
     await pipeline.data_fetcher.fetch_approved_drugs(limit=3000)
 
     # Initialise baselines
-    cosine_baseline = CosineSimilarityBaseline(use_tfidf=True)
-    text_baseline   = TextMiningBaseline()
+    cosine_baseline     = CosineSimilarityBaseline(use_tfidf=True)
+    text_baseline       = TextMiningBaseline()
+    jaccard_baseline    = JaccardOverlapBaseline()
+    gene_count_baseline = GeneCountBaseline()
 
     baseline_counts = {
-        "cosine": {"tp": 0, "fn": 0, "tn": 0, "fp": 0},
-        "text":   {"tp": 0, "fn": 0, "tn": 0, "fp": 0},
-        "random": {"tp": 0, "fn": 0, "tn": 0, "fp": 0},
+        "cosine":     {"tp": 0, "fn": 0, "tn": 0, "fp": 0},
+        "text":       {"tp": 0, "fn": 0, "tn": 0, "fp": 0},
+        "jaccard":    {"tp": 0, "fn": 0, "tn": 0, "fp": 0},
+        "gene_count": {"tp": 0, "fn": 0, "tn": 0, "fp": 0},
+        "random":     {"tp": 0, "fn": 0, "tn": 0, "fp": 0},
     }
 
     # ── TEST SET ──────────────────────────────────────────────────────────────
@@ -234,16 +273,15 @@ async def run_validation() -> bool:
         test_results.append(r)
         _print_case_result(r)
 
-        # Baselines
         disease_data = await pipeline.data_fetcher.fetch_disease_data(case["repurposed_for"])
         drugs_data   = pipeline.drugs_cache or []
 
         bl = await _run_baselines_on_case(
-            case, disease_data, drugs_data, 100, text_baseline, cosine_baseline
+            case, disease_data, drugs_data, 100,
+            text_baseline, cosine_baseline, jaccard_baseline, gene_count_baseline,
         )
         for method, found in bl.items():
-            k = "tp" if found else "fn"
-            baseline_counts[method][k] += 1
+            baseline_counts[method]["tp" if found else "fn"] += 1
 
     # ── NEGATIVE CONTROLS ─────────────────────────────────────────────────────
     _print_section("PHASE 2: Negative Controls")
@@ -261,11 +299,11 @@ async def run_validation() -> bool:
         drugs_data   = pipeline.drugs_cache or []
 
         bl = await _run_baselines_on_negative(
-            neg, disease_data, drugs_data, 100, text_baseline, cosine_baseline
+            neg, disease_data, drugs_data, 100,
+            text_baseline, cosine_baseline, jaccard_baseline, gene_count_baseline,
         )
         for method, ok in bl.items():
-            k = "tn" if ok else "fp"
-            baseline_counts[method][k] += 1
+            baseline_counts[method]["tn" if ok else "fp"] += 1
 
     await text_baseline.close()
 
@@ -311,31 +349,33 @@ async def run_validation() -> bool:
         print(f"    {cat}: {counts['tp']}/{total} = {sens:.2%}")
 
     # Baseline comparison table
-    print("\n  ┌─────────────────────────┬────────────┬────────────┬───────────┬──────────┐")
-    print("  │ Method                  │ Sensitivity│ Specificity│ Precision │ F1       │")
-    print("  ├─────────────────────────┼────────────┼────────────┼───────────┼──────────┤")
+    print("\n  ┌──────────────────────────────┬────────────┬────────────┬───────────┬──────────┐")
+    print("  │ Method                       │ Sensitivity│ Specificity│ Precision │ F1       │")
+    print("  ├──────────────────────────────┼────────────┼────────────┼───────────┼──────────┤")
 
-    def _row(name: str, tp: int, fn: int, tn: int, fp: int) -> None:
-        n_p = tp + fn; n_n = tn + fp
-        sens = tp / n_p if n_p else 0
-        spec = tn / n_n if n_n else 0
-        prec = tp / (tp + fp) if (tp + fp) > 0 else 0
+    def _row(name: str, tp_: int, fn_: int, tn_: int, fp_: int) -> None:
+        n_p  = tp_ + fn_; n_n = tn_ + fp_
+        sens = tp_ / n_p if n_p else 0
+        spec = tn_ / n_n if n_n else 0
+        prec = tp_ / (tp_ + fp_) if (tp_ + fp_) > 0 else 0
         f1_v = 2*prec*sens/(prec+sens) if (prec+sens) > 0 else 0
-        print(f"  │ {name:<23} │ {sens:>9.1%} │ {spec:>9.1%} │ {prec:>8.1%} │ {f1_v:>7.1%} │")
+        print(f"  │ {name:<28} │ {sens:>9.1%} │ {spec:>9.1%} │ {prec:>8.1%} │ {f1_v:>7.1%} │")
 
-    _row("Main algorithm",
-         len(tp), len(fn), len(tn), len(fp))
+    _row("Main algorithm", len(tp), len(fn), len(tn), len(fp))
+    labels = {
+        "cosine":     "Cosine similarity",
+        "text":       "Text-mining (PubMed)",
+        "jaccard":    "Jaccard overlap",
+        "gene_count": "Gene count",
+        "random":     "Random baseline",
+    }
     for method, counts in baseline_counts.items():
-        label = {"cosine": "Cosine similarity", "text": "Text-mining (PubMed)",
-                 "random": "Random baseline"}[method]
-        _row(label, counts["tp"], counts["fn"], counts["tn"], counts["fp"])
-    print("  └─────────────────────────┴────────────┴────────────┴───────────┴──────────┘")
+        _row(labels[method], counts["tp"], counts["fn"], counts["tn"], counts["fp"])
+    print("  └──────────────────────────────┴────────────┴────────────┴───────────┴──────────┘")
 
-    # Random baseline lift
     rand_sens = min(100 / 500, 1.0)
     print(f"\n  Lift over random baseline: {sensitivity - rand_sens:+.1%}")
 
-    # Metformin/AML false-positive discussion
     print("\n  FALSE POSITIVE ANALYSIS — Metformin / acute myeloid leukemia:")
     print("  Metformin's AMPK/mTOR targets (PRKAA1, PRKAA2) partially overlap")
     print("  with AML gene associations in OpenTargets, driven by metabolic")
@@ -345,7 +385,6 @@ async def run_validation() -> bool:
     print("  25174600). The expected_score_range cap for this pair was raised")
     print("  to 0.35 to acknowledge this marginal overlap.")
 
-    # Pass/fail
     targets = get_validation_metrics_target()
     sens_ok = sensitivity >= targets["sensitivity"]
     spec_ok = specificity >= targets["specificity"]
@@ -357,7 +396,6 @@ async def run_validation() -> bool:
           f"precision≥{targets['precision']:.0%}")
     print(f"  {'✅ VALIDATION PASSED' if passed else '❌ VALIDATION FAILED'}")
 
-    # Score distribution
     scores = [r["score"] for r in tp if r["score"] is not None]
     if scores:
         print(f"\n  Score stats (detected positives): "
@@ -365,7 +403,6 @@ async def run_validation() -> bool:
               f"std={np.std(scores):.3f}, "
               f"range=[{np.min(scores):.3f}, {np.max(scores):.3f}]")
 
-    # Save
     output = {
         "test_cases":     test_results,
         "negative_cases": neg_results,
@@ -385,7 +422,7 @@ async def run_validation() -> bool:
                 for m, c in baseline_counts.items()
             },
             "lift_over_random": sensitivity - rand_sens,
-            "per_category":     {
+            "per_category": {
                 cat: {"tp": v["tp"], "fn": v["fn"],
                       "sensitivity": v["tp"]/(v["tp"]+v["fn"]) if (v["tp"]+v["fn"]) else 0}
                 for cat, v in cats.items()
