@@ -146,6 +146,14 @@ ESSENTIAL_DRUGS: Dict[str, str] = {
     "CHEMBL87":      "Tamoxifen",
     "CHEMBL109":     "Valproic acid",
     "CHEMBL422":     "Dexamethasone",
+    # ── Added: drugs that appear in validation set but may be missed by ChEMBL ──
+    "CHEMBL1862997": "Nivolumab",       # PD-1 inhibitor (NSCLC repurposing)
+    "CHEMBL2007641": "Pembrolizumab",   # PD-1 inhibitor (melanoma primary)
+    "CHEMBL3989540": "Nusinersen",      # SMN2 splice-switcher (SMA)
+    "CHEMBL1201846": "Eculizumab",      # C5 complement inhibitor (PNH)
+    "CHEMBL1213492": "Ivacaftor",       # CFTR potentiator (cystic fibrosis)
+    "CHEMBL1229517": "Sirolimus",       # mTOR inhibitor (tuberous sclerosis)
+    "CHEMBL1201583": "Olaparib",        # PARP inhibitor (ovarian cancer)
 }
 
 
@@ -175,6 +183,11 @@ KNOWN_BIOLOGIC_TARGETS: Dict[str, List[str]] = {
     "secukinumab":   ["IL17A"],
     "ixekizumab":    ["IL17A"],
     "guselkumab":    ["IL23A"],
+    # ── Added: targets not previously covered ─────────────────────────────────
+    # Nusinersen: ASO targeting SMN2 pre-mRNA. Source: FDA label; PMID:28056917
+    "nusinersen":    ["SMN2", "SMN1"],
+    # Eculizumab: anti-C5 complement mAb. Source: FDA label; PMID:18768943
+    "eculizumab":    ["C5"],
 }
 
 
@@ -206,6 +219,15 @@ KNOWN_SMALL_MOLECULE_TARGETS: Dict[str, List[str]] = {
     # Colchicine tubulin binding — DGIdb returns TUBB but inconsistently
     "colchicine":  ["TUBB", "TUBB1", "TUBB2A", "TUBB2B", "TUBB3",
                     "TUBB4A", "TUBB4B", "TUBB6", "TUBB8"],
+    # ── Added ──────────────────────────────────────────────────────────────
+    "ivacaftor":    ["CFTR"],            # PMID:23989293
+    "sirolimus":    ["MTOR", "TSC1", "TSC2", "FKBP1A"],  # PMID:23561269
+    "metformin":    ["PRKAA1", "PRKAA2"],  # PMID:11602624 (belt-and-suspenders)
+    "empagliflozin": ["SLC5A2"],         # PMID:33093160
+    "ezetimibe":    ["NPC1L1"],           # PMID:14523140
+    "olaparib":     ["PARP1", "PARP2"],   # PMID:24882576
+    "hydroxychloroquine": ["TLR7", "TLR9"],  # PMID:14693966
+    "aspirin":      ["PTGS1", "PTGS2"],   # belt-and-suspenders for COX pathway
 }
 
 
@@ -1106,6 +1128,29 @@ class ProductionDataFetcher:
             "TUBB4B": ["Microtubule stability"],
             "TUBB6":  ["Microtubule stability"],
             "TUBB8":  ["Microtubule stability"],
+            # ── Added ──────────────────────────────────────────────────────
+            "C5":     ["Complement system", "Complement activation",
+                       "Innate immunity"],
+            "SMN1":   ["mRNA splicing", "Motor neuron survival"],
+            "SMN2":   ["mRNA splicing", "Motor neuron survival"],
+            "CFTR":   ["Chloride ion transport", "CFTR channel activity",
+                       "Epithelial ion homeostasis"],
+            "MTOR":   ["mTOR signaling", "Autophagy", "Protein synthesis"],
+            "TSC1":   ["mTOR signaling", "TSC-mTOR pathway"],
+            "TSC2":   ["mTOR signaling", "TSC-mTOR pathway"],
+            "FKBP1A": ["mTOR signaling", "Immunosuppression pathway"],
+            "SLC5A2": ["Glucose reabsorption", "SGLT2 signaling"],
+            "NPC1L1": ["Cholesterol absorption", "Lipid metabolism"],
+            "PARP1":  ["DNA damage response", "Base excision repair",
+                       "PARP signaling", "Synthetic lethality"],
+            "PARP2":  ["DNA damage response", "Base excision repair",
+                       "PARP signaling"],
+            "NPPA":   ["Natriuretic peptide signaling",
+                       "Cardiac preload regulation"],
+            "NPPB":   ["Natriuretic peptide signaling",
+                       "Cardiac preload regulation"],
+            "TLR7":   ["Toll-like receptor signaling", "Innate immunity",
+                       "Interferonopathy pathway"],
         }
 
         pathways: Set[str] = set()

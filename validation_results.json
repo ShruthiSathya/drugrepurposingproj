@@ -4,8 +4,8 @@
     "n_test_cases": 33,
     "n_positive_cases": 25,
     "n_negative_cases": 8,
-    "run_timestamp_utc": "2026-02-20T08:19:57.170073+00:00",
-    "elapsed_seconds": 43.8,
+    "run_timestamp_utc": "2026-02-20T17:57:35.609847+00:00",
+    "elapsed_seconds": 51.23,
     "min_score_used": 0.0
   },
   "metrics": {
