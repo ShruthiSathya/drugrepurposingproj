@@ -148,9 +148,8 @@ ESSENTIAL_DRUGS: Dict[str, str] = {
     "CHEMBL109":     "Valproic acid",
     "CHEMBL422":     "Dexamethasone",
     # ── Added: drugs that appear in validation set but may be missed by ChEMBL ──
-    "CHEMBL1862997": "Nivolumab",       # PD-1 inhibitor (NSCLC repurposing)
-    "CHEMBL2007641": "Pembrolizumab",   # PD-1 inhibitor (melanoma primary)
-    "CHEMBL3989540": "Nusinersen",      # SMN2 splice-switcher (SMA)
+    "CHEMBL2108738": "Nivolumab",       # confirmed max_phase 4
+    "CHEMBL3137343": "Pembrolizumab",   
     "CHEMBL1201846": "Eculizumab",      # C5 complement inhibitor (PNH)
     "CHEMBL1213492": "Ivacaftor",       # CFTR potentiator (cystic fibrosis)
     "CHEMBL1229517": "Sirolimus",       # mTOR inhibitor (tuberous sclerosis)
@@ -303,6 +302,20 @@ class ProductionDataFetcher:
         return data
 
     async def _fetch_from_opentargets(self, disease_name: str) -> Optional[Dict]:
+        disease_cache_file = self.cache_dir / "disease_cache.json"
+        disk_cache: Dict = {}
+        if disease_cache_file.exists():
+            try:
+                with open(disease_cache_file) as f:
+                    disk_cache = json.load(f)
+            except Exception:
+                disk_cache = {}
+
+        cache_key = disease_name.lower().strip()
+        if cache_key in disk_cache:
+            logger.info(f"✅ Disease cache hit: {disease_name}")
+            return disk_cache[cache_key]
+
         session = await self._get_session()
 
         names_to_try = [disease_name]
@@ -392,7 +405,7 @@ class ProductionDataFetcher:
                         gene_scores[symbol] = score
 
                 logger.info(f"📊 Found {len(genes)} associated genes from OpenTargets")
-                return {
+                result_data = {
                     "name":        found_name,
                     "id":          disease_id,
                     "description": disease_data.get("description", "")[:500],
@@ -401,6 +414,14 @@ class ProductionDataFetcher:
                     "pathways":    [],
                     "source":      "OpenTargets Platform",
                 }
+                # Save to disk cache
+                disk_cache[cache_key] = result_data
+                try:
+                     with open(disease_cache_file, "w") as f:
+                        json.dump(disk_cache, f, indent=2)
+                except Exception as e:
+                    logger.warning(f"⚠️  Disease cache write failed: {e}")
+                return result_data
         except Exception as e:
             logger.error(f"❌ OpenTargets fetch failed: {e}")
             return None

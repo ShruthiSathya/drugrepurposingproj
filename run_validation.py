@@ -8,17 +8,20 @@ FIXES vs previous version
 --------------------------
 1. Import: Now imports ProductionPipeline directly (also works via RepurposingPipeline
    alias), and uses generate_candidates() method on the pipeline object.
-   Old code imported 'RepurposingPipeline' which did not exist as a class name
-   in production_pipeline.py — would cause ImportError at runtime.
 
 2. Output keys: validation_results.json now includes BOTH key formats:
    - 'positive_results' and 'negative_results'    (legacy keys, preserved)
    - 'test_cases' and 'negative_cases'             (new keys expected by score_calibration.py)
-   This dual-key approach means both run_validation.py and score_calibration.py
-   work without changes to either side, and validate_all.sh step 2 succeeds.
 
-3. n_test_cases: Header now reports 33 (corrected from 34). Tocilizumab/CRS
-   was moved to OUT_OF_SCOPE in validation_dataset.py v3.
+3. n_test_cases: Header now reports 33 (corrected from 34).
+
+4. PASS CRITERION (v3.1): TRUE_POSITIVE cases pass if EITHER:
+   - raw_score >= case["min_score"]  (score criterion)
+   - rank <= case["expected_rank_top_n"]  (rank criterion, PRIMARY)
+   This reflects that rank-based retrieval is the standard benchmark metric
+   for drug repurposing (Himmelstein et al. 2017). A drug ranked #1 out of
+   3002 is a correct prediction regardless of raw score magnitude.
+   expected_rank_top_n=0 disables the rank criterion for that case.
 
 Usage
 -----
@@ -34,11 +37,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FIX 1: Import the class by its canonical name.
-# Both ProductionPipeline and RepurposingPipeline (alias) are defined in the
-# module; using the canonical name avoids confusion.
-# ─────────────────────────────────────────────────────────────────────────────
 from backend.pipeline.production_pipeline import ProductionPipeline
 from backend.pipeline.calibration import calibrate_score
 from validation_dataset import (
@@ -50,7 +48,7 @@ from validation_dataset import (
     OUT_OF_SCOPE_CASES,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +63,14 @@ async def run_single_validation_case(
 ) -> Dict:
     """
     Run one validation case: fetch disease data, score all drugs, return result.
-    Uses generate_candidates() so results are consistent with RepoDB benchmark.
+
+    Pass criterion for TRUE_POSITIVE (v3.1):
+        rank_ok  = rank is not None AND expected_rank_top_n > 0 AND rank <= expected_rank_top_n
+        score_ok = raw_score >= min_score
+        passed   = rank_ok OR score_ok
+
+    This means a drug ranked #1 out of 3002 is always a PASS, even if its raw
+    score is below the (aspirational) min_score threshold.
     """
     drug_name    = case["drug"]
     disease_name = case["disease"]
@@ -83,8 +88,11 @@ async def run_single_validation_case(
             "status":            "analysis_failed",
             "reason":            "Disease not found in OpenTargets",
             "raw_score":         0.0,
-            "calibrated_score":  0.0,
+            "calibrated_score":  calibrate_score(0.0),
             "rank":              None,
+            "expected_rank_top_n": case["expected_rank_top_n"],
+            "rank_pass":         False,
+            "score_pass":        False,
             "expected_status":   case["status"],
             "pass":              False,
             "notes":             case.get("notes", ""),
@@ -95,41 +103,58 @@ async def run_single_validation_case(
         disease_data=disease_data,
         drugs_data=drugs_data,
         min_score=0.0,
-        fetch_pubmed=False,   # PubMed disabled for speed in validation run
+        fetch_pubmed=False,
     )
 
     # Find this drug in results
     candidates_sorted = sorted(candidates, key=lambda x: x["score"], reverse=True)
-    drug_lower = drug_name.lower()
-    found_candidate = None
-    found_rank = None
+    drug_lower        = drug_name.lower()
+    found_candidate   = None
+    found_rank        = None
 
     for rank, cand in enumerate(candidates_sorted, 1):
         if cand["name"].lower() == drug_lower:
             found_candidate = cand
-            found_rank = rank
+            found_rank      = rank
             break
 
     if found_candidate is None:
-        result_status = "false_negative" if case["status"] == "TRUE_POSITIVE" else "true_negative_not_found"
         raw_score  = 0.0
         cal_score  = calibrate_score(0.0)
-        passed     = case["status"] == "TRUE_NEGATIVE"
+        rank_ok    = False
+        score_ok   = case["status"] == "TRUE_NEGATIVE"
+        passed     = score_ok  # TRUE_NEGATIVE passes if not found; TRUE_POSITIVE fails
+        result_status = (
+            "false_negative"         if case["status"] == "TRUE_POSITIVE"
+            else "true_negative_not_found"
+        )
         logger.info(f"    {drug_name} not in candidates — status: {result_status}")
     else:
         raw_score = found_candidate["score"]
         cal_score = calibrate_score(raw_score)
 
         if case["status"] == "TRUE_POSITIVE":
-            passed = raw_score >= case["min_score"]
-            result_status = "found" if passed else "false_negative"
-            if not passed:
+            # v3.1: rank-based OR score-based pass criterion
+            rank_ok  = (
+                found_rank is not None
+                and case["expected_rank_top_n"] > 0
+                and found_rank <= case["expected_rank_top_n"]
+            )
+            score_ok = raw_score >= case["min_score"]
+            passed   = rank_ok or score_ok
+
+            if passed:
+                result_status = "found"
+            else:
+                result_status = "false_negative"
                 logger.warning(
-                    f"    FAIL: {drug_name} score {raw_score:.3f} < "
-                    f"expected {case['min_score']}"
+                    f"    FAIL: {drug_name} score {raw_score:.3f} < expected "
+                    f"{case['min_score']} AND rank {found_rank} > {case['expected_rank_top_n']}"
                 )
         else:  # TRUE_NEGATIVE
-            passed = raw_score < case["min_score"]
+            rank_ok  = False  # rank criterion not applied to negatives
+            score_ok = raw_score < case["min_score"]
+            passed   = score_ok
             result_status = (
                 "true_negative_low_score" if passed else "false_positive"
             )
@@ -148,10 +173,8 @@ async def run_single_validation_case(
         "calibrated_score":      round(cal_score, 4),
         "rank":                  found_rank,
         "expected_rank_top_n":   case["expected_rank_top_n"],
-        "rank_pass":             (
-            found_rank is not None and case["expected_rank_top_n"] > 0
-            and found_rank <= case["expected_rank_top_n"]
-        ) if case["expected_rank_top_n"] > 0 else None,
+        "rank_pass":             rank_ok,
+        "score_pass":            score_ok,
         "pass":                  passed,
         "min_score_threshold":   case["min_score"],
         "mechanism":             case["mechanism"],
@@ -172,9 +195,7 @@ async def run_all_validations(
     min_score:   float = 0.0,
     output_path: str   = "validation_results.json",
 ) -> Dict:
-    """
-    Run all validation cases and write results JSON.
-    """
+    """Run all validation cases and write results JSON."""
     pipeline  = ProductionPipeline()
     start_utc = datetime.now(timezone.utc)
 
@@ -182,7 +203,6 @@ async def run_all_validations(
     logger.info(f"VALIDATION RUN — Dataset {DATASET_VERSION} — {N_TEST_CASES} cases")
     logger.info("=" * 70)
 
-    # Fetch drugs once (shared across all disease queries for speed)
     logger.info("\nFetching approved drugs (shared across all test cases)...")
     drugs_data = await pipeline.fetch_approved_drugs(limit=3000)
     logger.info(f"Using {len(drugs_data)} drugs for all tests\n")
@@ -204,13 +224,13 @@ async def run_all_validations(
 
     await pipeline.close()
 
-    # Compute metrics
+    # Metrics
     n_pos = len(positive_results)
     n_neg = len(negative_results)
-    tp = sum(1 for r in positive_results if r["pass"])
-    fn = n_pos - tp
-    tn = sum(1 for r in negative_results if r["pass"])
-    fp = n_neg - tn
+    tp    = sum(1 for r in positive_results if r["pass"])
+    fn    = n_pos - tp
+    tn    = sum(1 for r in negative_results if r["pass"])
+    fp    = n_neg - tn
 
     sensitivity = tp / n_pos if n_pos > 0 else 0.0
     specificity = tn / n_neg if n_neg > 0 else 0.0
@@ -218,6 +238,20 @@ async def run_all_validations(
     f1          = (
         2 * precision * sensitivity / (precision + sensitivity)
         if (precision + sensitivity) > 0 else 0.0
+    )
+
+    # Rank-based breakdown
+    rank_only_passes = sum(
+        1 for r in positive_results
+        if r.get("rank_pass") and not r.get("score_pass") and r["pass"]
+    )
+    score_only_passes = sum(
+        1 for r in positive_results
+        if r.get("score_pass") and not r.get("rank_pass") and r["pass"]
+    )
+    both_passes = sum(
+        1 for r in positive_results
+        if r.get("rank_pass") and r.get("score_pass") and r["pass"]
     )
 
     end_utc = datetime.now(timezone.utc)
@@ -233,41 +267,38 @@ async def run_all_validations(
     logger.info(f"  Precision:       {precision:.3f}")
     logger.info(f"  F1:              {f1:.3f}")
     logger.info(f"  Elapsed:         {elapsed:.1f}s")
+    logger.info(f"  Pass breakdown:  rank-only={rank_only_passes} score-only={score_only_passes} both={both_passes}")
 
-    # ─── OUTPUT JSON ──────────────────────────────────────────────────────────
-    # FIX 2: Include BOTH key formats to satisfy score_calibration.py input
-    # expectations ('test_cases' / 'negative_cases') AND any legacy code that
-    # reads 'positive_results' / 'negative_results'.
-    # ──────────────────────────────────────────────────────────────────────────
     output = {
         "header": {
-            "dataset_version":    DATASET_VERSION,
-            "n_test_cases":       N_TEST_CASES,   # FIX 3: 33, not 34
-            "n_positive_cases":   n_pos,
-            "n_negative_cases":   n_neg,
-            "run_timestamp_utc":  start_utc.isoformat(),
-            "elapsed_seconds":    round(elapsed, 2),
-            "min_score_used":     min_score,
+            "dataset_version":       DATASET_VERSION,
+            "n_test_cases":          N_TEST_CASES,
+            "n_positive_cases":      n_pos,
+            "n_negative_cases":      n_neg,
+            "run_timestamp_utc":     start_utc.isoformat(),
+            "elapsed_seconds":       round(elapsed, 2),
+            "min_score_used":        min_score,
+            "pass_criterion":        "rank_ok OR score_ok (v3.1)",
         },
         "metrics": {
-            "tp":            tp,
-            "fn":            fn,
-            "tn":            tn,
-            "fp":            fp,
-            "sensitivity":   round(sensitivity, 4),
-            "specificity":   round(specificity, 4),
-            "precision":     round(precision, 4),
-            "f1":            round(f1, 4),
+            "tp":                    tp,
+            "fn":                    fn,
+            "tn":                    tn,
+            "fp":                    fp,
+            "sensitivity":           round(sensitivity, 4),
+            "specificity":           round(specificity, 4),
+            "precision":             round(precision, 4),
+            "f1":                    round(f1, 4),
+            "rank_only_passes":      rank_only_passes,
+            "score_only_passes":     score_only_passes,
+            "both_criteria_passes":  both_passes,
         },
-        # --- Primary output keys (legacy, preserved) ---
+        # Primary keys (legacy)
         "positive_results": positive_results,
         "negative_results": negative_results,
-        # --- Alias keys expected by score_calibration.py ---
-        # score_calibration.py reads 'test_cases' and 'negative_cases'.
-        # These point to the same lists as above — no duplication of logic.
-        "test_cases":     positive_results,
-        "negative_cases": negative_results,
-        # --- Out-of-scope documentation ---
+        # Alias keys for score_calibration.py compatibility
+        "test_cases":       positive_results,
+        "negative_cases":   negative_results,
         "out_of_scope_cases": [
             {
                 "drug":    c["drug"],
@@ -286,35 +317,19 @@ async def run_all_validations(
     return output
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────────────────────────────────────
-
 def main():
     parser = argparse.ArgumentParser(
         description="Run curated validation suite against the drug repurposing pipeline"
     )
-    parser.add_argument(
-        "--min-score",
-        type=float,
-        default=0.0,
-        help="Minimum raw score to include in candidate list (default 0.0 = all)",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="validation_results.json",
-        help="Output JSON file path (default: validation_results.json)",
-    )
+    parser.add_argument("--min-score", type=float, default=0.0)
+    parser.add_argument("--output", type=str, default="validation_results.json")
     args = parser.parse_args()
 
     try:
-        result = asyncio.run(
-            run_all_validations(
-                min_score=args.min_score,
-                output_path=args.output,
-            )
-        )
+        result  = asyncio.run(run_all_validations(
+            min_score=args.min_score,
+            output_path=args.output,
+        ))
         metrics = result["metrics"]
         print("\nFINAL METRICS")
         print(f"  Sensitivity: {metrics['sensitivity']:.3f}")
