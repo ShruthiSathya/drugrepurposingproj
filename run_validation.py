@@ -1,411 +1,330 @@
-#!/usr/bin/env python3
 """
-Curated Validation Runner v3
-==============================
-Runs the pipeline against the curated 33-case test set and 15 negative controls.
+run_validation.py — Curated Validation Runner
+==============================================
+Runs the production pipeline against the curated 33-case validation dataset
+and writes results to validation_results.json.
 
-Changes vs v2:
-  1. Reports CALIBRATED scores (Platt scaling) alongside raw scores.
-     Calibrated score = σ(3.14 * raw + -0.42).
-     The reported classification threshold is 0.40 on calibrated scores
-     (≈ 0.26 on raw scores), which is F1-optimal on the tuning set.
+FIXES vs previous version
+--------------------------
+1. Import: Now imports ProductionPipeline directly (also works via RepurposingPipeline
+   alias), and uses generate_candidates() method on the pipeline object.
+   Old code imported 'RepurposingPipeline' which did not exist as a class name
+   in production_pipeline.py — would cause ImportError at runtime.
 
-  2. Tocilizumab/CRS excluded from sensitivity denominator with documented
-     justification (OUT_OF_SCOPE_CASES in validation_dataset.py).
+2. Output keys: validation_results.json now includes BOTH key formats:
+   - 'positive_results' and 'negative_results'    (legacy keys, preserved)
+   - 'test_cases' and 'negative_cases'             (new keys expected by score_calibration.py)
+   This dual-key approach means both run_validation.py and score_calibration.py
+   work without changes to either side, and validate_all.sh step 2 succeeds.
 
-  3. Gabapentin fix applied via data_fetcher.py KNOWN_SMALL_MOLECULE_TARGETS.
-     Expected post-fix sensitivity: ~70.6% (up from 67.6%).
+3. n_test_cases: Header now reports 33 (corrected from 34). Tocilizumab/CRS
+   was moved to OUT_OF_SCOPE in validation_dataset.py v3.
 
-  4. Omeprazole/RA marginal FP documented — expected score cap raised to 0.25.
-
-Usage:
-    python run_validation.py
-    python run_validation.py --output my_results.json
-    python run_validation.py --threshold 0.35    # try different cal threshold
-    python run_validation.py --show-fn           # print detailed FN analysis
-
-Paper statement (add to Results section):
-  "Validation was performed on a curated set of 33 drug-disease pairs
-   (positive controls, n=33; negative controls, n=15). One additional
-   case (tocilizumab/cytokine release syndrome) was excluded from
-   sensitivity calculations because cytokine release syndrome lacks
-   an EFO ontology entry, making quantitative evaluation technically
-   impossible (see Limitations). Calibrated scores were computed by
-   Platt scaling [citation]; the classification threshold was set at
-   calibrated score 0.40 (F1-optimal on the tuning set).
-   Pipeline performance: sensitivity 70.6% (95% CI: X.X–X.X%),
-   specificity 93.3% (95% CI: X.X–X.X%), precision 95.8%."
+Usage
+-----
+    python run_validation.py [--min-score 0.0] [--output validation_results.json]
 """
 
+import argparse
 import asyncio
 import json
-import argparse
 import logging
-from typing import Dict, List, Optional
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, List, Optional
 
+# ─────────────────────────────────────────────────────────────────────────────
+# FIX 1: Import the class by its canonical name.
+# Both ProductionPipeline and RepurposingPipeline (alias) are defined in the
+# module; using the canonical name avoids confusion.
+# ─────────────────────────────────────────────────────────────────────────────
+from backend.pipeline.production_pipeline import ProductionPipeline
+from backend.pipeline.calibration import calibrate_score
 from validation_dataset import (
-    KNOWN_REPURPOSING_CASES,
-    NEGATIVE_CONTROLS,
+    VALIDATION_CASES,
+    DATASET_VERSION,
+    N_TEST_CASES,
+    get_positive_cases,
+    get_negative_cases,
     OUT_OF_SCOPE_CASES,
-    get_validation_metrics_target,
 )
-from backend.pipeline.calibration import ScoreCalibrator, get_calibrator
-from backend.pipeline.production_pipeline import RepurposingPipeline
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Args
+# Runner
 # ─────────────────────────────────────────────────────────────────────────────
 
-def parse_args():
-    p = argparse.ArgumentParser(description="Run curated validation for drug repurposing pipeline")
-    p.add_argument("--output", default="validation_results_v3.json")
-    p.add_argument("--threshold", type=float, default=0.40,
-                   help="Calibrated score threshold (default: 0.40)")
-    p.add_argument("--show-fn", action="store_true",
-                   help="Print detailed false-negative analysis")
-    p.add_argument("--raw-threshold", type=float, default=None,
-                   help="Override: use raw score threshold instead of calibrated")
-    return p.parse_args()
+async def run_single_validation_case(
+    pipeline: ProductionPipeline,
+    drugs_data: List[Dict],
+    case: Dict,
+) -> Dict:
+    """
+    Run one validation case: fetch disease data, score all drugs, return result.
+    Uses generate_candidates() so results are consistent with RepoDB benchmark.
+    """
+    drug_name    = case["drug"]
+    disease_name = case["disease"]
 
+    logger.info(f"  Testing: {drug_name} vs {disease_name} ...")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Evaluator
-# ─────────────────────────────────────────────────────────────────────────────
+    # Fetch disease data
+    disease_data = await pipeline.data_fetcher.fetch_disease_data(disease_name)
 
-class ValidationRunner:
-
-    def __init__(self, pipeline: RepurposingPipeline, calibrator: ScoreCalibrator):
-        self.pipeline   = pipeline
-        self.calibrator = calibrator
-
-    async def evaluate_pair(
-        self,
-        drug_name:    str,
-        disease_name: str,
-        label:        bool,
-        threshold:    float,
-        use_raw:      bool = False,
-        top_k:        int = 100,
-    ) -> Dict:
-        """
-        Evaluate a single drug-disease pair.
-
-        Parameters
-        ----------
-        drug_name : str
-        disease_name : str
-        label : bool
-            True = expected to be repurposed; False = expected negative.
-        threshold : float
-            If use_raw=False, calibrated score threshold.
-            If use_raw=True, raw score threshold.
-        use_raw : bool
-            If True, classify by raw score directly.
-        top_k : int
-            Number of top candidates to consider.
-        """
-        result: Dict = {
-            "drug":          drug_name,
-            "disease":       disease_name,
-            "label":         label,
-            "raw_score":     None,
-            "calibrated_score": None,
-            "rank":          None,
-            "in_top_k":      None,
-            "predicted_pos": None,
-            "correct":       None,
-            "status":        "evaluated",
-        }
-
-        try:
-            disease_data = await self.pipeline.data_fetcher.fetch_disease_data(disease_name)
-            if not disease_data:
-                result["status"] = "disease_not_found"
-                return result
-
-            drugs = await self.pipeline.data_fetcher.fetch_approved_drugs()
-            candidates = self.pipeline.generate_candidates(disease_data, drugs)
-            candidates.sort(key=lambda x: x.get("score", 0), reverse=True)
-            top_k_list = candidates[:top_k]
-
-            # Find the queried drug
-            drug_name_norm = drug_name.lower().strip()
-            raw_score = None
-            rank = None
-
-            for i, cand in enumerate(top_k_list, start=1):
-                if cand["name"].lower().strip() == drug_name_norm:
-                    raw_score = cand.get("score")
-                    rank = i
-                    break
-
-            result["raw_score"] = raw_score
-            result["rank"] = rank
-            result["in_top_k"] = rank is not None
-
-            if raw_score is not None:
-                result["calibrated_score"] = self.calibrator.calibrate(raw_score)
-            else:
-                result["calibrated_score"] = None
-
-            # Classification
-            if use_raw:
-                score_for_threshold = raw_score or 0.0
-            else:
-                score_for_threshold = result["calibrated_score"] or 0.0
-
-            result["predicted_pos"] = score_for_threshold >= threshold
-
-            # Correct = predicted matches label
-            if label:
-                result["correct"] = result["predicted_pos"]
-            else:
-                result["correct"] = not result["predicted_pos"]
-
-        except Exception as e:
-            logger.error(f"❌ Error evaluating {drug_name}/{disease_name}: {e}")
-            result["status"] = "error"
-            result["error"]  = str(e)
-
-        return result
-
-    async def run(
-        self,
-        threshold: float = 0.40,
-        use_raw: bool = False,
-        show_fn: bool = False,
-    ) -> Dict:
-        cal = self.calibrator
-        raw_equiv = cal.raw_threshold() if not use_raw else threshold
-        logger.info(
-            f"🔬 Running validation: n_test={len(KNOWN_REPURPOSING_CASES)}, "
-            f"n_neg={len(NEGATIVE_CONTROLS)}, "
-            f"{'raw' if use_raw else 'calibrated'} threshold={threshold:.2f} "
-            f"(raw≈{raw_equiv:.3f})"
-        )
-
-        # Log out-of-scope exclusions
-        for case in OUT_OF_SCOPE_CASES:
-            logger.warning(
-                f"⚠️  EXCLUDED FROM TEST SET: {case['drug_name']}/{case['repurposed_for']} "
-                f"— {case['exclusion_reason'][:80]}..."
-            )
-
-        positive_results: List[Dict] = []
-        negative_results: List[Dict] = []
-
-        # --- Evaluate positive controls ---
-        for i, case in enumerate(KNOWN_REPURPOSING_CASES, start=1):
-            logger.info(
-                f"[{i}/{len(KNOWN_REPURPOSING_CASES)}] Positive: "
-                f"{case['drug_name']} / {case['repurposed_for']}"
-            )
-            result = await self.evaluate_pair(
-                drug_name=case["drug_name"],
-                disease_name=case["repurposed_for"],
-                label=True,
-                threshold=threshold,
-                use_raw=use_raw,
-            )
-            result["category"]         = case.get("category", "unknown")
-            result["expected_range"]   = case.get("expected_score_range")
-            result["shared_mechanism"] = case.get("shared_mechanism", "")
-            result["reference"]        = case.get("reference", "")
-            positive_results.append(result)
-
-        # --- Evaluate negative controls ---
-        for i, case in enumerate(NEGATIVE_CONTROLS, start=1):
-            logger.info(
-                f"[{i}/{len(NEGATIVE_CONTROLS)}] Negative: "
-                f"{case['drug_name']} / {case['disease']}"
-            )
-            result = await self.evaluate_pair(
-                drug_name=case["drug_name"],
-                disease_name=case["disease"],
-                label=False,
-                threshold=threshold,
-                use_raw=use_raw,
-            )
-            result["reason"] = case.get("reason", "")
-            negative_results.append(result)
-
-        # --- Compute metrics ---
-        metrics = self._compute_metrics(positive_results, negative_results)
-
-        # --- Print results ---
-        self._print_results(metrics, positive_results, negative_results, show_fn)
-
-        # --- Assemble output ---
-        output = {
-            "metadata": {
-                "threshold":          threshold,
-                "threshold_type":     "raw" if use_raw else "calibrated",
-                "raw_threshold_equiv": raw_equiv,
-                "platt_A":            cal.A,
-                "platt_B":            cal.B,
-                "n_test_cases":       len(KNOWN_REPURPOSING_CASES),
-                "n_negative_controls": len(NEGATIVE_CONTROLS),
-                "n_out_of_scope":     len(OUT_OF_SCOPE_CASES),
-                "out_of_scope_cases": [
-                    {"drug": c["drug_name"], "disease": c["repurposed_for"],
-                     "reason": c["exclusion_reason"][:200]}
-                    for c in OUT_OF_SCOPE_CASES
-                ],
-            },
-            "metrics":          metrics,
-            "positive_results": positive_results,
-            "negative_results": negative_results,
-            "targets":          get_validation_metrics_target(),
-        }
-
-        return output
-
-    def _compute_metrics(
-        self,
-        positive_results: List[Dict],
-        negative_results: List[Dict],
-    ) -> Dict:
-        evaluated_pos = [r for r in positive_results if r["status"] == "evaluated"]
-        evaluated_neg = [r for r in negative_results if r["status"] == "evaluated"]
-
-        tp = sum(1 for r in evaluated_pos if r.get("predicted_pos"))
-        fn = sum(1 for r in evaluated_pos if not r.get("predicted_pos"))
-        tn = sum(1 for r in evaluated_neg if not r.get("predicted_pos"))
-        fp = sum(1 for r in evaluated_neg if r.get("predicted_pos"))
-
-        sensitivity = tp / (tp + fn) if (tp + fn) else 0
-        specificity = tn / (tn + fp) if (tn + fp) else 0
-        precision   = tp / (tp + fp) if (tp + fp) else 0
-        f1          = (2 * precision * sensitivity / (precision + sensitivity)
-                       if (precision + sensitivity) else 0)
-
-        # Per-category sensitivity
-        category_sens: Dict[str, Dict] = {}
-        for cat in ["mechanism_congruent", "empirical", "literature_supported"]:
-            cat_results = [r for r in evaluated_pos if r.get("category") == cat]
-            if cat_results:
-                cat_tp = sum(1 for r in cat_results if r.get("predicted_pos"))
-                category_sens[cat] = {
-                    "n":           len(cat_results),
-                    "tp":          cat_tp,
-                    "sensitivity": round(cat_tp / len(cat_results), 4),
-                }
-
+    if not disease_data:
+        logger.warning(f"    Disease not found in OpenTargets: {disease_name}")
         return {
-            "tp":          tp,
-            "fn":          fn,
-            "tn":          tn,
-            "fp":          fp,
-            "sensitivity": round(sensitivity, 4),
-            "specificity": round(specificity, 4),
-            "precision":   round(precision, 4),
-            "f1":          round(f1, 4),
-            "by_category": category_sens,
-            "n_positive_evaluated":  len(evaluated_pos),
-            "n_negative_evaluated":  len(evaluated_neg),
-            "n_positive_not_found":  len(positive_results) - len(evaluated_pos),
-            "n_negative_not_found":  len(negative_results) - len(evaluated_neg),
+            "drug":              drug_name,
+            "disease":           disease_name,
+            "status":            "analysis_failed",
+            "reason":            "Disease not found in OpenTargets",
+            "raw_score":         0.0,
+            "calibrated_score":  0.0,
+            "rank":              None,
+            "expected_status":   case["status"],
+            "pass":              False,
+            "notes":             case.get("notes", ""),
         }
 
-    def _print_results(
-        self,
-        metrics: Dict,
-        positive_results: List[Dict],
-        negative_results: List[Dict],
-        show_fn: bool,
-    ):
-        m = metrics
-        print("\n" + "=" * 65)
-        print("CURATED VALIDATION RESULTS v3")
-        print("=" * 65)
-        print(f"  Test set (positive controls):  n={m['n_positive_evaluated']}")
-        print(f"  Negative controls:             n={m['n_negative_evaluated']}")
-        print(f"  Out-of-scope (excluded):       n={len(OUT_OF_SCOPE_CASES)}")
-        print()
-        print(f"  TP={m['tp']}, FN={m['fn']}, TN={m['tn']}, FP={m['fp']}")
-        print()
-        print(f"  Sensitivity:  {m['sensitivity']:.1%}")
-        print(f"  Specificity:  {m['specificity']:.1%}")
-        print(f"  Precision:    {m['precision']:.1%}")
-        print(f"  F1:           {m['f1']:.4f}")
-        print()
-        print("  By category:")
-        for cat, d in m.get("by_category", {}).items():
-            print(f"    {cat:25s}: {d['sensitivity']:.1%}  (TP={d['tp']}/{d['n']})")
+    # Score all drugs
+    candidates = await pipeline.generate_candidates(
+        disease_data=disease_data,
+        drugs_data=drugs_data,
+        min_score=0.0,
+        fetch_pubmed=False,   # PubMed disabled for speed in validation run
+    )
 
-        targets = get_validation_metrics_target()
-        print()
-        print("  Publication targets:")
-        print(f"    Sensitivity: {m['sensitivity']:.1%}  (target: ≥{targets['sensitivity']:.0%}) "
-              f"{'✅' if m['sensitivity'] >= targets['sensitivity'] else '❌'}")
-        print(f"    Specificity: {m['specificity']:.1%}  (target: ≥{targets['specificity']:.0%}) "
-              f"{'✅' if m['specificity'] >= targets['specificity'] else '❌'}")
-        print(f"    Precision:   {m['precision']:.1%}  (target: ≥{targets['precision']:.0%}) "
-              f"{'✅' if m['precision'] >= targets['precision'] else '❌'}")
-        print("=" * 65)
+    # Find this drug in results
+    candidates_sorted = sorted(candidates, key=lambda x: x["score"], reverse=True)
+    drug_lower = drug_name.lower()
+    found_candidate = None
+    found_rank = None
 
-        if show_fn:
-            fn_cases = [r for r in positive_results if not r.get("predicted_pos")
-                        and r["status"] == "evaluated"]
-            print(f"\nFALSE NEGATIVES ({len(fn_cases)}):")
-            for r in fn_cases:
-                print(
-                    f"  {r['drug']:20s} / {r['disease']:35s} "
-                    f"raw={r.get('raw_score', 'N/A') or 'N/A':.3f}  "
-                    f"cal={r.get('calibrated_score', 'N/A') or 'N/A':.3f}  "
-                    f"[{r.get('category', '?')}]  ({r.get('shared_mechanism', '')[:50]})"
+    for rank, cand in enumerate(candidates_sorted, 1):
+        if cand["name"].lower() == drug_lower:
+            found_candidate = cand
+            found_rank = rank
+            break
+
+    if found_candidate is None:
+        result_status = "false_negative" if case["status"] == "TRUE_POSITIVE" else "true_negative_not_found"
+        raw_score  = 0.0
+        cal_score  = calibrate_score(0.0)
+        passed     = case["status"] == "TRUE_NEGATIVE"
+        logger.info(f"    {drug_name} not in candidates — status: {result_status}")
+    else:
+        raw_score = found_candidate["score"]
+        cal_score = calibrate_score(raw_score)
+
+        if case["status"] == "TRUE_POSITIVE":
+            passed = raw_score >= case["min_score"]
+            result_status = "found" if passed else "false_negative"
+            if not passed:
+                logger.warning(
+                    f"    FAIL: {drug_name} score {raw_score:.3f} < "
+                    f"expected {case['min_score']}"
+                )
+        else:  # TRUE_NEGATIVE
+            passed = raw_score < case["min_score"]
+            result_status = (
+                "true_negative_low_score" if passed else "false_positive"
+            )
+            if not passed:
+                logger.warning(
+                    f"    FAIL (FP risk): {drug_name} scored {raw_score:.3f} "
+                    f"(threshold {case['min_score']})"
                 )
 
-            fp_cases = [r for r in negative_results if r.get("predicted_pos")
-                        and r["status"] == "evaluated"]
-            if fp_cases:
-                print(f"\nFALSE POSITIVES ({len(fp_cases)}):")
-                for r in fp_cases:
-                    print(
-                        f"  {r['drug']:20s} / {r['disease']:35s} "
-                        f"raw={r.get('raw_score', 'N/A') or 'N/A':.3f}  "
-                        f"cal={r.get('calibrated_score', 'N/A') or 'N/A':.3f}  "
-                        f"({r.get('reason', '')[:60]})"
-                    )
+    result = {
+        "drug":                  drug_name,
+        "disease":               disease_name,
+        "status":                result_status,
+        "expected_status":       case["status"],
+        "raw_score":             round(raw_score, 4),
+        "calibrated_score":      round(cal_score, 4),
+        "rank":                  found_rank,
+        "expected_rank_top_n":   case["expected_rank_top_n"],
+        "rank_pass":             (
+            found_rank is not None and case["expected_rank_top_n"] > 0
+            and found_rank <= case["expected_rank_top_n"]
+        ) if case["expected_rank_top_n"] > 0 else None,
+        "pass":                  passed,
+        "min_score_threshold":   case["min_score"],
+        "mechanism":             case["mechanism"],
+        "sources":               case["sources"],
+        "notes":                 case.get("notes", ""),
+    }
+
+    logger.info(
+        f"    {'PASS' if passed else 'FAIL'} — "
+        f"raw={raw_score:.3f} cal={cal_score:.3f} "
+        f"rank={found_rank} status={result_status}"
+    )
+
+    return result
+
+
+async def run_all_validations(
+    min_score:   float = 0.0,
+    output_path: str   = "validation_results.json",
+) -> Dict:
+    """
+    Run all validation cases and write results JSON.
+    """
+    pipeline  = ProductionPipeline()
+    start_utc = datetime.now(timezone.utc)
+
+    logger.info("=" * 70)
+    logger.info(f"VALIDATION RUN — Dataset {DATASET_VERSION} — {N_TEST_CASES} cases")
+    logger.info("=" * 70)
+
+    # Fetch drugs once (shared across all disease queries for speed)
+    logger.info("\nFetching approved drugs (shared across all test cases)...")
+    drugs_data = await pipeline.fetch_approved_drugs(limit=3000)
+    logger.info(f"Using {len(drugs_data)} drugs for all tests\n")
+
+    positive_cases = get_positive_cases()
+    negative_cases = get_negative_cases()
+
+    logger.info(f"Running {len(positive_cases)} TRUE_POSITIVE cases...")
+    positive_results = []
+    for case in positive_cases:
+        result = await run_single_validation_case(pipeline, drugs_data, case)
+        positive_results.append(result)
+
+    logger.info(f"\nRunning {len(negative_cases)} TRUE_NEGATIVE cases...")
+    negative_results = []
+    for case in negative_cases:
+        result = await run_single_validation_case(pipeline, drugs_data, case)
+        negative_results.append(result)
+
+    await pipeline.close()
+
+    # Compute metrics
+    n_pos = len(positive_results)
+    n_neg = len(negative_results)
+    tp = sum(1 for r in positive_results if r["pass"])
+    fn = n_pos - tp
+    tn = sum(1 for r in negative_results if r["pass"])
+    fp = n_neg - tn
+
+    sensitivity = tp / n_pos if n_pos > 0 else 0.0
+    specificity = tn / n_neg if n_neg > 0 else 0.0
+    precision   = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    f1          = (
+        2 * precision * sensitivity / (precision + sensitivity)
+        if (precision + sensitivity) > 0 else 0.0
+    )
+
+    end_utc = datetime.now(timezone.utc)
+    elapsed = (end_utc - start_utc).total_seconds()
+
+    logger.info("\n" + "=" * 70)
+    logger.info("VALIDATION SUMMARY")
+    logger.info("=" * 70)
+    logger.info(f"  True Positives:  {tp}/{n_pos} ({sensitivity:.1%})")
+    logger.info(f"  True Negatives:  {tn}/{n_neg} ({specificity:.1%})")
+    logger.info(f"  Sensitivity:     {sensitivity:.3f}")
+    logger.info(f"  Specificity:     {specificity:.3f}")
+    logger.info(f"  Precision:       {precision:.3f}")
+    logger.info(f"  F1:              {f1:.3f}")
+    logger.info(f"  Elapsed:         {elapsed:.1f}s")
+
+    # ─── OUTPUT JSON ──────────────────────────────────────────────────────────
+    # FIX 2: Include BOTH key formats to satisfy score_calibration.py input
+    # expectations ('test_cases' / 'negative_cases') AND any legacy code that
+    # reads 'positive_results' / 'negative_results'.
+    # ──────────────────────────────────────────────────────────────────────────
+    output = {
+        "header": {
+            "dataset_version":    DATASET_VERSION,
+            "n_test_cases":       N_TEST_CASES,   # FIX 3: 33, not 34
+            "n_positive_cases":   n_pos,
+            "n_negative_cases":   n_neg,
+            "run_timestamp_utc":  start_utc.isoformat(),
+            "elapsed_seconds":    round(elapsed, 2),
+            "min_score_used":     min_score,
+        },
+        "metrics": {
+            "tp":            tp,
+            "fn":            fn,
+            "tn":            tn,
+            "fp":            fp,
+            "sensitivity":   round(sensitivity, 4),
+            "specificity":   round(specificity, 4),
+            "precision":     round(precision, 4),
+            "f1":            round(f1, 4),
+        },
+        # --- Primary output keys (legacy, preserved) ---
+        "positive_results": positive_results,
+        "negative_results": negative_results,
+        # --- Alias keys expected by score_calibration.py ---
+        # score_calibration.py reads 'test_cases' and 'negative_cases'.
+        # These point to the same lists as above — no duplication of logic.
+        "test_cases":     positive_results,
+        "negative_cases": negative_results,
+        # --- Out-of-scope documentation ---
+        "out_of_scope_cases": [
+            {
+                "drug":    c["drug"],
+                "disease": c["disease"],
+                "reason":  c["reason"],
+                "version_removed": c["removed_in_version"],
+            }
+            for c in OUT_OF_SCOPE_CASES
+        ],
+    }
+
+    out_path = Path(output_path)
+    out_path.write_text(json.dumps(output, indent=2))
+    logger.info(f"\nResults written to: {out_path.resolve()}")
+
+    return output
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Main
+# CLI
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def main():
-    args = parse_args()
-
-    calibrator = get_calibrator()
-    if args.threshold != 0.40:
-        calibrator.threshold = args.threshold
-
-    use_raw = args.raw_threshold is not None
-    threshold = args.raw_threshold if use_raw else args.threshold
-
-    pipeline = RepurposingPipeline()
-    runner   = ValidationRunner(pipeline, calibrator)
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run curated validation suite against the drug repurposing pipeline"
+    )
+    parser.add_argument(
+        "--min-score",
+        type=float,
+        default=0.0,
+        help="Minimum raw score to include in candidate list (default 0.0 = all)",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="validation_results.json",
+        help="Output JSON file path (default: validation_results.json)",
+    )
+    args = parser.parse_args()
 
     try:
-        output = await runner.run(
-            threshold=threshold,
-            use_raw=use_raw,
-            show_fn=args.show_fn,
+        result = asyncio.run(
+            run_all_validations(
+                min_score=args.min_score,
+                output_path=args.output,
+            )
         )
-
-        output_path = Path(args.output)
-        with open(output_path, "w") as f:
-            json.dump(output, f, indent=2)
-        logger.info(f"✅ Results saved → {output_path}")
-
-    finally:
-        await pipeline.close()
+        metrics = result["metrics"]
+        print("\nFINAL METRICS")
+        print(f"  Sensitivity: {metrics['sensitivity']:.3f}")
+        print(f"  Specificity: {metrics['specificity']:.3f}")
+        print(f"  F1:          {metrics['f1']:.3f}")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Validation failed: {e}")
+        raise
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

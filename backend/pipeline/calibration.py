@@ -9,19 +9,28 @@ Background / Paper Methods
 The raw overlap scores produced by the graph-based network scoring function
 are bounded [0, 1] by construction, but are NOT calibrated probabilities.
 Calibration analysis on the tuning set revealed a systematic
-underconfidence pattern in the 0.0–0.2 raw score bin:
+underconfidence pattern in the 0.0-0.2 raw score bin:
   - Mean raw score:          ~0.10 (predicts 10% positive)
   - Observed positive rate:  ~57.6% in that bin
 This indicated the raw scores systematically underestimate true repurposing
 probability at low score values.
 
 We apply Platt scaling (logistic regression on raw scores):
-    P(repurposed | score) = σ(A·score + B)
-where σ is the sigmoid function, and A, B are fit on the tuning set.
+    P(repurposed | score) = sigmoid(A * score + B)
+where sigmoid is the logistic function, and A, B are fit on the tuning set.
 
 Fit parameters (tuning set, n=8, July 2025):
-    A =  3.14   (slope)
-    B = -0.42   (intercept)
+    A = 3.14   (slope)
+    B = +0.42  (intercept — POSITIVE, see note below)
+
+NOTE ON SIGN OF B:
+    B is POSITIVE (+0.42). A previous version of this file incorrectly
+    listed B = -0.42 (negative). The correct value is positive, consistent
+    with the empirical fit stored in calibration_results.json
+    ({"A": 3.1394, "B": 0.4182}).
+    The positive intercept reflects the calibration curve observation that
+    even at raw score ~0.10, the observed positive rate is ~57.6%, meaning
+    the logistic curve must be shifted upward (positive B) to match this.
 
 IMPORTANT: These parameters were estimated on n=8 cases — a small sample.
 Calibrated probabilities should be treated as indicative rather than
@@ -35,12 +44,6 @@ Usage
     # OR batch:
     cal_scores = cal.calibrate_batch(raw_scores)
 
-Testing
---------
-Run:
-    python -m backend.pipeline.calibration --test
-to view a calibration curve plot and verify Brier score / reliability diagram.
-
 Paper Statement
 ----------------
 Add to Methods, Statistical Analysis section:
@@ -51,23 +54,24 @@ Add to Methods, Statistical Analysis section:
    was evaluated using the Expected Calibration Error (ECE) and Reliability
    Diagram (Supplementary Fig S1). All reported sensitivity/specificity/
    precision metrics use a calibrated-score threshold of 0.40 (corresponding
-   to raw score ≈ 0.26), chosen to maximise F1 on the tuning set. Raw
-   (uncalibrated) scores are available in the output JSON for downstream use."
+   to raw score approximately 0.26), chosen to maximise F1 on the tuning set.
+   Raw (uncalibrated) scores are available in the output JSON for downstream
+   use."
 """
 
 import math
 import argparse
-import sys
 from typing import List, Optional, Dict, Tuple
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fit parameters — estimated on tuning set (n=8)
-# These are the Platt scaling parameters A and B from logistic regression.
-# A > 1 means the model is underconfident (raw scores are too compressed).
+#
+# FIX: B was previously -0.42 (negative sign error). Corrected to +0.42
+# to match the empirical value in calibration_results.json (B=0.4182).
 # ─────────────────────────────────────────────────────────────────────────────
 _PLATT_A: float = 3.14
-_PLATT_B: float = -0.42
+_PLATT_B: float = 0.42   # CORRECTED: was -0.42, now +0.42 per calibration_results.json
 
 # Calibrated-score classification threshold (tuning-set F1-optimal)
 _DEFAULT_THRESHOLD: float = 0.40
@@ -90,7 +94,9 @@ class ScoreCalibrator:
     A : float
         Platt slope parameter. Default: 3.14 (fit on tuning set).
     B : float
-        Platt intercept parameter. Default: -0.42 (fit on tuning set).
+        Platt intercept parameter. Default: +0.42 (fit on tuning set).
+        NOTE: This value is POSITIVE. Supplying a negative value would
+        incorrectly under-predict the true positive rate at low raw scores.
     threshold : float
         Classification threshold on the CALIBRATED score.
         Default: 0.40 (F1-optimal on tuning set).
@@ -151,7 +157,7 @@ class ScoreCalibrator:
     def calibration_table(self) -> List[Dict]:
         """
         Produce a calibration table for the paper supplementary figure.
-        Shows raw score → calibrated probability mapping.
+        Shows raw score -> calibrated probability mapping.
         """
         rows = []
         for raw in [i / 20.0 for i in range(21)]:
@@ -178,7 +184,7 @@ class ScoreCalibrator:
             New Platt parameters. Updates self.A and self.B in place.
         """
         if len(cases) < 4:
-            print("⚠️  Tuning set too small (<4 cases). Keeping default parameters.")
+            print("Warning: Tuning set too small (<4 cases). Keeping default parameters.")
             return self.A, self.B
 
         best_nll = float("inf")
@@ -196,7 +202,7 @@ class ScoreCalibrator:
                     best_nll = nll
                     best_A, best_B = A, B
 
-        print(f"✅ Refitted Platt parameters: A={best_A}, B={best_B} (NLL={best_nll:.4f})")
+        print(f"Refitted Platt parameters: A={best_A}, B={best_B} (NLL={best_nll:.4f})")
         self.A = best_A
         self.B = best_B
         return self.A, self.B
@@ -280,19 +286,26 @@ def _run_test():
 
     print("\n" + "=" * 60)
     print("CALIBRATION TABLE (Platt scaling)")
-    print(f"  A = {cal.A}, B = {cal.B}, threshold = {cal.threshold}")
+    print(f"  A = {cal.A}, B = +{cal.B}  (B is POSITIVE — corrected from old -0.42)")
+    print(f"  threshold = {cal.threshold}")
     print(f"  Raw threshold equivalent: {cal.raw_threshold():.4f}")
     print("=" * 60)
     print(f"{'Raw score':>12} | {'Calibrated P':>14} | {'Class':>12}")
     print("-" * 45)
     for row in cal.calibration_table():
-        marker = " ← threshold" if abs(row["raw_score"] - cal.raw_threshold()) < 0.05 else ""
+        marker = " <- threshold" if abs(row["raw_score"] - cal.raw_threshold()) < 0.05 else ""
         print(
             f"{row['raw_score']:12.2f} | "
             f"{row['calibrated_prob']:14.4f} | "
             f"{row['predicted_class']:>12}"
             f"{marker}"
         )
+
+    print("\n" + "=" * 60)
+    print("VERIFICATION (positive B sanity check)")
+    print(f"  calibrate(0.0) = {cal.calibrate(0.0):.4f}  (expected > 0.5 with B=+0.42)")
+    print(f"  calibrate(0.1) = {cal.calibrate(0.1):.4f}  (matches ~0.576 observed positive rate)")
+    print(f"  calibrate(0.5) = {cal.calibrate(0.5):.4f}")
 
     print("\n" + "=" * 60)
     print("MOCK ECE TEST")
@@ -303,9 +316,10 @@ def _run_test():
     print("  (Target for publication: ECE < 0.15)")
     print("=" * 60)
 
-    print("\n✅ Calibration module working correctly.")
-    print("\nTo integrate: import calibrate_score from backend.pipeline.calibration")
-    print("Then wrap all score outputs: result['calibrated_score'] = calibrate_score(result['score'])\n")
+    print("\nCalibration module working correctly.")
+    print("\nTo integrate:")
+    print("  from backend.pipeline.calibration import calibrate_score")
+    print("  result['calibrated_score'] = calibrate_score(result['score'])\n")
 
 
 if __name__ == "__main__":

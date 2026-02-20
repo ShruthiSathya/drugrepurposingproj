@@ -1,16 +1,24 @@
 """
-FIXED PRODUCTION PIPELINE ORCHESTRATOR v3
+FIXED PRODUCTION PIPELINE ORCHESTRATOR v4
 ==========================================
-Key fixes vs v2:
-1. fetch_approved_drugs(limit=3000) — fetches ALL ChEMBL approved drugs
-   instead of a random 500 sample.
-2. PubMed lookup batched/cached to avoid rate-limiting.
-3. CATEGORY BREAKDOWN in output metadata for validation analysis.
+Key fixes vs v3:
+1. Added generate_candidates() method — extracted from analyze_disease() so that
+   repodb_benchmark.py and run_validation.py can call it directly without running
+   the full pipeline. Required by RepoDBBenchmark and ValidationRunner.
+
+2. RepurposingPipeline alias added at module bottom — run_validation.py and
+   repodb_benchmark.py import RepurposingPipeline; both names now work.
+
+3. fetch_approved_drugs() exposed on pipeline object directly (delegates to
+   data_fetcher) so external callers do not need to reach into data_fetcher.
+
+4. drugs_cache exposed so RepoDB benchmark can reuse it across disease queries.
 """
 
 import asyncio
 import aiohttp
 import logging
+import math
 import time
 from typing import Dict, List, Optional
 
@@ -41,7 +49,6 @@ class ProductionPipeline:
 
     # ── PubMed helper ─────────────────────────────────────────────────────────
     async def _fetch_pubmed_score(self, drug_name: str, disease_name: str) -> float:
-        import math
         key = f"{drug_name.lower()}|{disease_name.lower()}"
         if key in self._pubmed_cache:
             return self._pubmed_cache[key]
@@ -79,6 +86,107 @@ class ProductionPipeline:
             )
         return score
 
+    # ── Public drug fetcher (delegates to data_fetcher, uses cache) ───────────
+    async def fetch_approved_drugs(self, limit: int = 3000) -> List[Dict]:
+        """
+        Fetch approved drugs, using internal cache if already loaded.
+        Exposed as a top-level method so external callers (RepoDB benchmark,
+        validation runner) can access it without reaching into data_fetcher.
+        """
+        if self.drugs_cache is None:
+            self.drugs_cache = await self.data_fetcher.fetch_approved_drugs(limit=limit)
+            logger.info(f"✅ Fetched {len(self.drugs_cache)} approved drugs (cached on pipeline)")
+        else:
+            logger.info(f"✅ Using cached drug data ({len(self.drugs_cache)} drugs)")
+        return self.drugs_cache
+
+    # ── generate_candidates() — callable by benchmark/validation scripts ──────
+    async def generate_candidates(
+        self,
+        disease_data: Dict,
+        drugs_data: List[Dict],
+        min_score: float = 0.0,
+        fetch_pubmed: bool = False,
+    ) -> List[Dict]:
+        """
+        Score all drugs against a disease and return candidate dicts.
+
+        Extracted from analyze_disease() so that:
+          - repodb_benchmark.py can call it directly per disease
+          - run_validation.py can find individual drug scores
+          - The full pipeline can call it as part of analyze_disease()
+
+        Parameters
+        ----------
+        disease_data : dict
+            Output of data_fetcher.fetch_disease_data().
+        drugs_data : list of dict
+            Output of fetch_approved_drugs().
+        min_score : float
+            Minimum composite score to include (default 0.0 = return all).
+        fetch_pubmed : bool
+            If True, fetch live PubMed co-occurrence scores (slower but more
+            accurate). If False, literature_score=0 (fast, for bulk benchmarks).
+
+        Returns
+        -------
+        list of dict
+            Unsorted list of candidate dicts. Each dict contains:
+            name, drug_name, drug_id, score, confidence, shared_genes,
+            shared_pathways, explanation, indication, mechanism,
+            gene_score, pathway_score, mechanism_score, literature_score.
+        """
+        graph  = self.graph_builder.build_graph(disease_data, drugs_data)
+        scorer = ProductionScorer(graph)
+
+        # Optionally fetch PubMed scores
+        pubmed_score_map: Dict[str, float] = {}
+        if fetch_pubmed:
+            drugs_with_targets = [d for d in drugs_data if d.get("targets")]
+            pubmed_tasks = [
+                self._fetch_pubmed_score(d["name"], disease_data["name"])
+                for d in drugs_with_targets
+            ]
+            scores_list = await asyncio.gather(*pubmed_tasks, return_exceptions=True)
+            pubmed_score_map = {
+                d["name"]: (s if isinstance(s, float) else 0.0)
+                for d, s in zip(drugs_with_targets, scores_list)
+            }
+
+        candidates = []
+        for drug in drugs_data:
+            lit_score = pubmed_score_map.get(drug["name"], 0.0)
+            score, evidence = scorer.score_drug_disease_match(
+                drug["name"],
+                disease_data["name"],
+                disease_data,
+                drug,
+                external_literature_score=lit_score,
+            )
+
+            if score >= min_score:
+                candidates.append(
+                    {
+                        # 'name' key for backward-compat with repodb_benchmark match_drug_name
+                        "name":            drug["name"],
+                        "drug_name":       drug["name"],
+                        "drug_id":         drug.get("id", ""),
+                        "score":           score,
+                        "confidence":      evidence["confidence"],
+                        "shared_genes":    evidence["shared_genes"],
+                        "shared_pathways": evidence["shared_pathways"],
+                        "explanation":     evidence["explanation"],
+                        "indication":      drug.get("indication", ""),
+                        "mechanism":       drug.get("mechanism", ""),
+                        "gene_score":      evidence["gene_score"],
+                        "pathway_score":   evidence["pathway_score"],
+                        "mechanism_score": evidence["mechanism_score"],
+                        "literature_score":evidence["literature_score"],
+                    }
+                )
+
+        return candidates
+
     # ── Main entry point ──────────────────────────────────────────────────────
     async def analyze_disease(
         self,
@@ -112,26 +220,20 @@ class ProductionPipeline:
         logger.info(f"   Pathways:    {len(disease_data['pathways'])}")
         logger.info(f"   Rare disease:{disease_data.get('is_rare', False)}")
 
-        # STEP 2: Approved drugs — fetch ALL, not just 500
+        # STEP 2: Approved drugs
         logger.info("\n💊 Step 2/5: Fetching approved drugs from ChEMBL...")
-        if self.drugs_cache is None:
-            drugs_data       = await self.data_fetcher.fetch_approved_drugs(limit=3000)
-            self.drugs_cache = drugs_data
-            logger.info(f"✅ Fetched {len(drugs_data)} approved drugs (cached)")
-        else:
-            drugs_data = self.drugs_cache
-            logger.info(f"✅ Using cached drug data ({len(drugs_data)} drugs)")
+        drugs_data = await self.fetch_approved_drugs(limit=3000)
 
         # STEP 3: Build graph
         logger.info("\n🕸️  Step 3/5: Building knowledge graph...")
-        graph      = self.graph_builder.build_graph(disease_data, drugs_data)
+        graph       = self.graph_builder.build_graph(disease_data, drugs_data)
         graph_stats = self.graph_builder.get_graph_stats()
         logger.info(
             f"✅ Graph built: {graph_stats['total_nodes']} nodes, "
             f"{graph_stats['total_edges']} edges"
         )
 
-        # STEP 4: Score
+        # STEP 4: Score with live PubMed
         logger.info("\n🎯 Step 4/5: Scoring drug-disease matches...")
         self.scorer = ProductionScorer(graph)
 
@@ -164,6 +266,7 @@ class ProductionPipeline:
             if score >= min_score:
                 candidates.append(
                     {
+                        "name":            drug["name"],
                         "drug_name":       drug["name"],
                         "drug_id":         drug.get("id", ""),
                         "score":           score,
@@ -242,6 +345,12 @@ class ProductionPipeline:
         if self._pubmed_session and not self._pubmed_session.closed:
             await self._pubmed_session.close()
         logger.info("🔒 Pipeline closed")
+
+
+# ── Aliases — both names resolve to the same class ───────────────────────────
+# run_validation.py and repodb_benchmark.py import RepurposingPipeline.
+# ProductionPipeline is the canonical name; RepurposingPipeline is the alias.
+RepurposingPipeline = ProductionPipeline
 
 
 async def analyze(

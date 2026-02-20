@@ -1,1095 +1,1231 @@
 {
+  "header": {
+    "dataset_version": "v3",
+    "n_test_cases": 33,
+    "n_positive_cases": 25,
+    "n_negative_cases": 8,
+    "run_timestamp_utc": "2026-02-20T08:19:57.170073+00:00",
+    "elapsed_seconds": 43.8,
+    "min_score_used": 0.0
+  },
+  "metrics": {
+    "tp": 7,
+    "fn": 18,
+    "tn": 8,
+    "fp": 0,
+    "sensitivity": 0.28,
+    "specificity": 1.0,
+    "precision": 1.0,
+    "f1": 0.4375
+  },
+  "positive_results": [
+    {
+      "drug": "sildenafil",
+      "disease": "pulmonary arterial hypertension",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2795,
+      "calibrated_score": 0.7854,
+      "rank": 31,
+      "expected_rank_top_n": 10,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.55,
+      "mechanism": "PDE5 inhibition \u2192 cGMP elevation \u2192 vasodilation; shared VEGF/NO pathway genes",
+      "sources": [
+        "PMID:15951850",
+        "PMID:17065669"
+      ],
+      "notes": "FDA-approved for PAH. Strong shared pathway signal expected."
+    },
+    {
+      "drug": "metformin",
+      "disease": "type 2 diabetes mellitus",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2001,
+      "calibrated_score": 0.7404,
+      "rank": 40,
+      "expected_rank_top_n": 5,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.6,
+      "mechanism": "AMPK activation \u2192 glucose uptake; primary indication, used as positive control",
+      "sources": [
+        "PMID:9742976"
+      ],
+      "notes": "Primary indication \u2014 highest expected score. Confirms scoring floor."
+    },
+    {
+      "drug": "metformin",
+      "disease": "polycystic ovary syndrome",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0758,
+      "calibrated_score": 0.6588,
+      "rank": 241,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.4,
+      "mechanism": "Insulin sensitisation; shared INSR/AMPK pathway genes with PCOS",
+      "sources": [
+        "PMID:12849456",
+        "PMID:23044908"
+      ],
+      "notes": "Off-label use well-supported by RCTs. Added in v2."
+    },
+    {
+      "drug": "thalidomide",
+      "disease": "multiple myeloma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.5042,
+      "calibrated_score": 0.8811,
+      "rank": 1,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "Anti-angiogenic; TNF-alpha suppression; shared VEGF/IKZF pathway",
+      "sources": [
+        "PMID:10432031"
+      ],
+      "notes": "FDA-approved after repurposing. Classic case."
+    },
+    {
+      "drug": "imatinib",
+      "disease": "chronic myelogenous leukemia",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.7262,
+      "calibrated_score": 0.937,
+      "rank": 1,
+      "expected_rank_top_n": 5,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.65,
+      "mechanism": "BCR-ABL1 kinase inhibition; primary indication \u2014 positive control",
+      "sources": [
+        "PMID:11287977"
+      ],
+      "notes": "Paradigmatic targeted therapy. Strongest expected shared gene signal."
+    },
+    {
+      "drug": "imatinib",
+      "disease": "gastrointestinal stromal tumor",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.7012,
+      "calibrated_score": 0.9323,
+      "rank": 3,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "KIT/PDGFRA inhibition; shared kinase pathway with CML imatinib targets",
+      "sources": [
+        "PMID:11547741"
+      ],
+      "notes": "FDA-approved repurposing from CML."
+    },
+    {
+      "drug": "rituximab",
+      "disease": "rheumatoid arthritis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4123,
+      "calibrated_score": 0.8474,
+      "rank": 4,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.4,
+      "mechanism": "CD20+ B-cell depletion; shared inflammatory pathway genes (TNF, IL6)",
+      "sources": [
+        "PMID:15022347"
+      ],
+      "notes": "FDA-approved for RA after initial NHL indication."
+    },
+    {
+      "drug": "finasteride",
+      "disease": "benign prostatic hyperplasia",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4119,
+      "calibrated_score": 0.8473,
+      "rank": 3,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "5-alpha-reductase inhibition; shared SRD5A1/SRD5A2 pathway",
+      "sources": [
+        "PMID:1279543"
+      ],
+      "notes": "Primary indication \u2014 positive control."
+    },
+    {
+      "drug": "colchicine",
+      "disease": "gout",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2421,
+      "calibrated_score": 0.765,
+      "rank": 72,
+      "expected_rank_top_n": 10,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.55,
+      "mechanism": "Microtubule polymerisation inhibition; primary indication",
+      "sources": [
+        "PMID:19252078"
+      ],
+      "notes": "Primary indication \u2014 positive control."
+    },
+    {
+      "drug": "colchicine",
+      "disease": "pericarditis",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1609,
+      "calibrated_score": 0.7161,
+      "rank": 3,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "pass": false,
+      "min_score_threshold": 0.35,
+      "mechanism": "NLRP3 inflammasome inhibition; shared IL1B pathway genes",
+      "sources": [
+        "PMID:23992557"
+      ],
+      "notes": "FDA-approved for recurrent pericarditis. Added in v2."
+    },
+    {
+      "drug": "aspirin",
+      "disease": "colorectal cancer",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1226,
+      "calibrated_score": 0.691,
+      "rank": 126,
+      "expected_rank_top_n": 25,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.3,
+      "mechanism": "COX-2/PTGS2 inhibition \u2192 prostaglandin reduction \u2192 anti-proliferative",
+      "sources": [
+        "PMID:21562262",
+        "PMID:26222032"
+      ],
+      "notes": "Strong epidemiological and trial evidence. Score may be moderate because CRC gene associations are broad."
+    },
+    {
+      "drug": "propranolol",
+      "disease": "infantile hemangioma",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 436,
+      "expected_rank_top_n": 30,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.3,
+      "mechanism": "Beta-adrenergic blockade \u2192 anti-angiogenic; VEGF pathway shared",
+      "sources": [
+        "PMID:18940929"
+      ],
+      "notes": "FDA breakthrough therapy. Score may be moderate \u2014 disease genes sparse in OpenTargets for rare pediatric conditions."
+    },
+    {
+      "drug": "sirolimus",
+      "disease": "tuberous sclerosis",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1464,
+      "calibrated_score": 0.7067,
+      "rank": 58,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "mTOR pathway inhibition; TSC1/TSC2 direct targets of mTOR signaling",
+      "sources": [
+        "PMID:23561269"
+      ],
+      "notes": "Strong mechanistic signal expected via mTOR pathway overlap."
+    },
+    {
+      "drug": "hydroxychloroquine",
+      "disease": "systemic lupus erythematosus",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0793,
+      "calibrated_score": 0.6613,
+      "rank": 20,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.4,
+      "mechanism": "TLR9 inhibition, autophagy modulation; shared interferonopathy pathway",
+      "sources": [
+        "PMID:14693966"
+      ],
+      "notes": "Standard of care for SLE."
+    },
+    {
+      "drug": "lenalidomide",
+      "disease": "multiple myeloma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.5032,
+      "calibrated_score": 0.8808,
+      "rank": 2,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "IKZF1/IKZF3 degradation via CRBN; immunomodulatory",
+      "sources": [
+        "PMID:24382584"
+      ],
+      "notes": "Thalidomide analogue. Approved for MM after MDS."
+    },
+    {
+      "drug": "letrozole",
+      "disease": "breast cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6335,
+      "calibrated_score": 0.9175,
+      "rank": 10,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.5,
+      "mechanism": "Aromatase (CYP19A1) inhibition \u2192 estrogen reduction",
+      "sources": [
+        "PMID:9470415"
+      ],
+      "notes": "Primary indication for hormone-receptor-positive breast cancer."
+    },
+    {
+      "drug": "gabapentin",
+      "disease": "epilepsy",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2152,
+      "calibrated_score": 0.7494,
+      "rank": 115,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.45,
+      "mechanism": "CACNA2D1 subunit inhibition \u2192 reduced calcium influx \u2192 neuronal stabilisation",
+      "sources": [
+        "PMID:8602533"
+      ],
+      "notes": "DGIdb CACNA2D1 data may be missing; pipeline falls back to KNOWN_BIOLOGIC_TARGETS for this drug (documented in data_fetcher.py). Test verifies that fallback does not silently fail."
+    },
+    {
+      "drug": "olaparib",
+      "disease": "ovarian cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6188,
+      "calibrated_score": 0.914,
+      "rank": 9,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.55,
+      "mechanism": "PARP1/2 inhibition \u2192 synthetic lethality in BRCA1/2-mutant cells",
+      "sources": [
+        "PMID:24882576"
+      ],
+      "notes": "Strong BRCA1/BRCA2 shared gene signal expected."
+    },
+    {
+      "drug": "nivolumab",
+      "disease": "non-small cell lung carcinoma",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": null,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.45,
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1 / CD274 pathway",
+      "sources": [
+        "PMID:25359623"
+      ],
+      "notes": "First indication was melanoma; NSCLC is a repurposing."
+    },
+    {
+      "drug": "pembrolizumab",
+      "disease": "melanoma",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": null,
+      "expected_rank_top_n": 10,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1 / CD274 / TMB pathway",
+      "sources": [
+        "PMID:25265492"
+      ],
+      "notes": "Primary indication \u2014 positive control for checkpoint inhibitor scoring."
+    },
+    {
+      "drug": "eculizumab",
+      "disease": "paroxysmal nocturnal hemoglobinuria",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.056,
+      "calibrated_score": 0.6447,
+      "rank": 1,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "pass": false,
+      "min_score_threshold": 0.4,
+      "mechanism": "C5 complement inhibition; shared complement pathway (C5, CD59) genes",
+      "sources": [
+        "PMID:18768943"
+      ],
+      "notes": "Rare disease \u2014 gene count in OpenTargets may be low. Score may be at lower bound."
+    },
+    {
+      "drug": "ivacaftor",
+      "disease": "cystic fibrosis",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4085,
+      "calibrated_score": 0.8459,
+      "rank": 3,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "CFTR potentiation (G551D gating mutation); direct CFTR shared gene",
+      "sources": [
+        "PMID:23989293"
+      ],
+      "notes": "Strong single-gene signal (CFTR). Should score well."
+    },
+    {
+      "drug": "nusinersen",
+      "disease": "spinal muscular atrophy",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": null,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.45,
+      "mechanism": "Antisense oligonucleotide promoting SMN2 exon 7 inclusion",
+      "sources": [
+        "PMID:28056917"
+      ],
+      "notes": "Strong SMN1/SMN2 gene signal expected."
+    },
+    {
+      "drug": "ezetimibe",
+      "disease": "hypercholesterolemia",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0278,
+      "calibrated_score": 0.6242,
+      "rank": 209,
+      "expected_rank_top_n": 10,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "NPC1L1 inhibition \u2192 reduced cholesterol absorption",
+      "sources": [
+        "PMID:14523140"
+      ],
+      "notes": "Primary indication."
+    },
+    {
+      "drug": "empagliflozin",
+      "disease": "heart failure",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0267,
+      "calibrated_score": 0.6234,
+      "rank": 438,
+      "expected_rank_top_n": 20,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.35,
+      "mechanism": "SGLT2 inhibition \u2192 diuresis, cardiac preload reduction; shared NPPA/NPPB pathway genes",
+      "sources": [
+        "PMID:33093160"
+      ],
+      "notes": "Repurposed from T2DM. Added in v2 as recent high-impact repurposing."
+    }
+  ],
+  "negative_results": [
+    {
+      "drug": "insulin glargine",
+      "disease": "multiple sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 2331,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "No known mechanistic link. MS is autoimmune/neurological; insulin targets INSR in metabolic context.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low. Flags if scoring is too permissive."
+    },
+    {
+      "drug": "warfarin",
+      "disease": "Parkinson disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0252,
+      "calibrated_score": 0.6222,
+      "rank": 625,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Warfarin is an anticoagulant targeting VKORC1/CYP2C9; no mechanistic connection to PD neurodegeneration.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "omeprazole",
+      "disease": "schizophrenia",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 1634,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Omeprazole is a PPI (H+/K+ ATPase inhibitor); no known dopamine/glutamate pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "atorvastatin",
+      "disease": "hemophilia A",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 1186,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Atorvastatin targets HMGCR in cholesterol metabolism; hemophilia A is a monogenic coagulation factor VIII deficiency.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low. Tests against rare monogenic disease."
+    },
+    {
+      "drug": "lisinopril",
+      "disease": "anorexia nervosa",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 1167,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "ACE inhibitor; no known eating disorder pathway connection.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "levothyroxine",
+      "disease": "inflammatory bowel disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.142,
+      "calibrated_score": 0.7039,
+      "rank": 141,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Thyroid hormone replacement. No IBD mechanistic link.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "amoxicillin",
+      "disease": "hypertrophic cardiomyopathy",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.03,
+      "calibrated_score": 0.6258,
+      "rank": 1109,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Beta-lactam antibiotic. HCM is a genetic sarcomere disorder; no pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "donepezil",
+      "disease": "amyotrophic lateral sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0222,
+      "calibrated_score": 0.62,
+      "rank": 327,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "AChE inhibitor; ALS involves motor neuron degeneration via TDP-43/SOD1 pathways, not cholinergic deficit.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "ALS and AD share some neurodegeneration genes. This tests whether the pipeline over-generalises across neurological diseases."
+    }
+  ],
   "test_cases": [
     {
-      "drug": "Sildenafil",
+      "drug": "sildenafil",
       "disease": "pulmonary arterial hypertension",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.2794876242368781,
-      "in_range": false,
-      "expected_range": [
-        0.4,
-        0.85
-      ],
-      "above_range": false,
-      "below_range": true,
-      "confidence": "medium",
-      "shared_genes": [
-        "PDE5A",
-        "VEGFA",
-        "NOS3"
-      ],
-      "shared_pathways": [
-        "Nitric oxide signaling",
-        "cGMP-PKG signaling",
-        "Pulmonary vascular remodeling"
-      ]
-    },
-    {
-      "drug": "Imatinib",
-      "disease": "pulmonary arterial hypertension",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.45783457943972494,
-      "in_range": true,
-      "expected_range": [
-        0.3,
-        0.7
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "ABL1",
-        "BIRC5",
-        "PDGFRB",
-        "KIT",
-        "PDGFRA",
-        "BCR",
-        "CSF1R"
-      ],
-      "shared_pathways": [
-        "Pulmonary vascular remodeling",
-        "PDGFR signaling",
-        "BCR-ABL signaling",
-        "Receptor tyrosine kinase",
-        "Tyrosine kinase signaling"
-      ]
-    },
-    {
-      "drug": "Bosentan",
-      "disease": "systemic sclerosis",
-      "category": "mechanism_congruent",
       "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.25,
-        0.65
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2795,
+      "calibrated_score": 0.7854,
+      "rank": 31,
+      "expected_rank_top_n": 10,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.55,
+      "mechanism": "PDE5 inhibition \u2192 cGMP elevation \u2192 vasodilation; shared VEGF/NO pathway genes",
+      "sources": [
+        "PMID:15951850",
+        "PMID:17065669"
       ],
-      "top_3": [
-        [
-          "SORAFENIB",
-          0.42
-        ],
-        [
-          "PAZOPANIB",
-          0.418
-        ],
-        [
-          "REGORAFENIB",
-          0.418
-        ]
-      ]
+      "notes": "FDA-approved for PAH. Strong shared pathway signal expected."
     },
     {
-      "drug": "Rituximab",
-      "disease": "rheumatoid arthritis",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.4123078987148442,
-      "in_range": true,
-      "expected_range": [
-        0.4,
-        0.9
+      "drug": "metformin",
+      "disease": "type 2 diabetes mellitus",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2001,
+      "calibrated_score": 0.7404,
+      "rank": 40,
+      "expected_rank_top_n": 5,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.6,
+      "mechanism": "AMPK activation \u2192 glucose uptake; primary indication, used as positive control",
+      "sources": [
+        "PMID:9742976"
       ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "MS4A1",
-        "IL6",
-        "FCGR2A",
-        "JAK2",
-        "CXCL13"
-      ],
-      "shared_pathways": [
-        "B-cell differentiation",
-        "JAK-STAT signaling",
-        "B-cell receptor signaling"
-      ]
+      "notes": "Primary indication \u2014 highest expected score. Confirms scoring floor."
     },
     {
-      "drug": "Trastuzumab",
-      "disease": "HER2+ gastric cancer",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.588143459940209,
-      "in_range": true,
-      "expected_range": [
-        0.35,
-        0.8
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "AKT2",
-        "EGFR",
-        "KRAS",
-        "PIK3CA",
-        "ERBB3",
-        "MET",
-        "EPCAM",
-        "ERBB2",
-        "ARID1A",
-        "PTEN",
-        "HGF",
-        "ESR1",
-        "RAD51C"
-      ],
-      "shared_pathways": [
-        "HER2 signaling",
-        "EGFR signaling"
-      ]
-    },
-    {
-      "drug": "Bevacizumab",
-      "disease": "non-small cell lung carcinoma",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.4559535788803542,
-      "in_range": true,
-      "expected_range": [
-        0.3,
-        0.7
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "EGFR",
-        "PIK3CA",
-        "NF1",
-        "TP53",
-        "PDGFRB",
-        "EML4",
-        "KIT",
-        "ALK",
-        "BRAF",
-        "VEGFA",
-        "PTEN",
-        "KRAS",
-        "NF2",
-        "HRAS"
-      ],
-      "shared_pathways": [
-        "EGFR signaling",
-        "MAPK signaling"
-      ]
-    },
-    {
-      "drug": "Gefitinib",
-      "disease": "head and neck squamous cell carcinoma",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.23742640134186968,
-      "in_range": false,
-      "expected_range": [
-        0.25,
-        0.65
-      ],
-      "above_range": false,
-      "below_range": true,
-      "confidence": "medium",
-      "shared_genes": [
-        "FLT4",
-        "EGFR",
-        "PIK3CA",
-        "ERBB3",
-        "MET",
-        "ERBB4",
-        "CHEK2",
-        "FGFR3",
-        "ERBB2",
-        "SMO",
-        "ALK",
-        "BRAF",
-        "PTEN",
-        "KRAS",
-        "ROS1"
-      ],
-      "shared_pathways": []
-    },
-    {
-      "drug": "Metformin",
+      "drug": "metformin",
       "disease": "polycystic ovary syndrome",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.4953547021165179,
-      "in_range": true,
-      "expected_range": [
-        0.35,
-        0.8
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "NDUFAF4",
-        "NDUFB10",
-        "NDUFA7",
-        "NDUFC2",
-        "NDUFB6",
-        "MT-ND1",
-        "NDUFA11",
-        "NDUFA1",
-        "MT-ND4L",
-        "NDUFA6",
-        "NDUFA3",
-        "NDUFB11",
-        "NDUFS5",
-        "MT-ND6",
-        "MT-ND2",
-        "NDUFA8",
-        "NDUFA13",
-        "NDUFB5",
-        "NDUFA10",
-        "AR",
-        "NDUFAF2",
-        "NDUFS7",
-        "NDUFAF3",
-        "MT-ND4",
-        "NDUFV1",
-        "NDUFS1",
-        "NDUFS4",
-        "GPD2",
-        "NDUFB8",
-        "NDUFS8",
-        "NDUFA12",
-        "NDUFV2",
-        "NDUFB7",
-        "NDUFA5",
-        "NDUFB9",
-        "NDUFC1",
-        "NDUFB2",
-        "NDUFB1",
-        "NDUFB4",
-        "NDUFAF1",
-        "NDUFV3",
-        "NDUFA2",
-        "NDUFA9",
-        "NDUFB3",
-        "MT-ND5",
-        "NDUFAB1",
-        "NDUFS2",
-        "NDUFS6",
-        "MT-ND3",
-        "NDUFS3"
-      ],
-      "shared_pathways": []
-    },
-    {
-      "drug": "Pioglitazone",
-      "disease": "non-alcoholic steatohepatitis",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.18016918175019545,
-      "in_range": false,
-      "expected_range": [
-        0.25,
-        0.65
-      ],
-      "above_range": false,
-      "below_range": true,
-      "confidence": "medium",
-      "shared_genes": [
-        "PPARG"
-      ],
-      "shared_pathways": [
-        "Glucose metabolism",
-        "PPAR signaling"
-      ]
-    },
-    {
-      "drug": "Spironolactone",
-      "disease": "polycystic ovary syndrome",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.14720839288688703,
-      "in_range": false,
-      "expected_range": [
-        0.25,
-        0.65
-      ],
-      "above_range": false,
-      "below_range": true,
-      "confidence": "low",
-      "shared_genes": [
-        "NR3C2",
-        "PPARG",
-        "AR",
-        "TNF",
-        "ADIPOQ"
-      ],
-      "shared_pathways": []
-    },
-    {
-      "drug": "Tocilizumab",
-      "disease": "cytokine release syndrome",
-      "category": "mechanism_congruent",
-      "status": "analysis_failed",
-      "reason": "Disease 'cytokine release syndrome' not found in OpenTargets database",
-      "score": null
-    },
-    {
-      "drug": "Abatacept",
-      "disease": "juvenile idiopathic arthritis",
-      "category": "mechanism_congruent",
       "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.25,
-        0.65
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0758,
+      "calibrated_score": 0.6588,
+      "rank": 241,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.4,
+      "mechanism": "Insulin sensitisation; shared INSR/AMPK pathway genes with PCOS",
+      "sources": [
+        "PMID:12849456",
+        "PMID:23044908"
       ],
-      "top_3": [
-        [
-          "INFLIXIMAB",
-          0.511
-        ],
-        [
-          "MIDOSTAURIN",
-          0.484
-        ],
-        [
-          "THALIDOMIDE",
-          0.465
-        ]
-      ]
+      "notes": "Off-label use well-supported by RCTs. Added in v2."
     },
     {
-      "drug": "Hydroxychloroquine",
-      "disease": "systemic lupus erythematosus",
-      "category": "mechanism_congruent",
+      "drug": "thalidomide",
+      "disease": "multiple myeloma",
       "status": "found",
-      "score": 0.07933565981387171,
-      "in_range": false,
-      "expected_range": [
-        0.25,
-        0.65
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.5042,
+      "calibrated_score": 0.8811,
+      "rank": 1,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "Anti-angiogenic; TNF-alpha suppression; shared VEGF/IKZF pathway",
+      "sources": [
+        "PMID:10432031"
       ],
-      "above_range": false,
-      "below_range": true,
-      "confidence": "low",
-      "shared_genes": [
-        "PTGS2",
-        "TLR7",
-        "TLR9"
-      ],
-      "shared_pathways": []
+      "notes": "FDA-approved after repurposing. Classic case."
     },
     {
-      "drug": "Memantine",
-      "disease": "neuropathic pain",
-      "category": "mechanism_congruent",
+      "drug": "imatinib",
+      "disease": "chronic myelogenous leukemia",
       "status": "found",
-      "score": 0.43672411231409697,
-      "in_range": true,
-      "expected_range": [
-        0.25,
-        0.65
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.7262,
+      "calibrated_score": 0.937,
+      "rank": 1,
+      "expected_rank_top_n": 5,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.65,
+      "mechanism": "BCR-ABL1 kinase inhibition; primary indication \u2014 positive control",
+      "sources": [
+        "PMID:11287977"
       ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "GRIN2D",
-        "GRIN2A",
-        "GRIN1",
-        "GRIN2C",
-        "GRIN2B",
-        "GRIN3A",
-        "GRIN3B"
-      ],
-      "shared_pathways": [
-        "Synaptic plasticity",
-        "Glutamate signaling",
-        "NMDA receptor signaling"
-      ]
+      "notes": "Paradigmatic targeted therapy. Strongest expected shared gene signal."
     },
     {
-      "drug": "Gabapentin",
-      "disease": "neuropathic pain",
-      "category": "mechanism_congruent",
-      "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.2,
-        0.6
-      ],
-      "top_3": [
-        [
-          "ORPHENADRINE CITRATE",
-          0.577
-        ],
-        [
-          "AMANTADINE",
-          0.437
-        ],
-        [
-          "FELBAMATE",
-          0.437
-        ]
-      ]
-    },
-    {
-      "drug": "Donepezil",
-      "disease": "vascular dementia",
-      "category": "mechanism_congruent",
+      "drug": "imatinib",
+      "disease": "gastrointestinal stromal tumor",
       "status": "found",
-      "score": 0.20384679727367974,
-      "in_range": false,
-      "expected_range": [
-        0.25,
-        0.65
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.7012,
+      "calibrated_score": 0.9323,
+      "rank": 3,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "KIT/PDGFRA inhibition; shared kinase pathway with CML imatinib targets",
+      "sources": [
+        "PMID:11547741"
       ],
-      "above_range": false,
-      "below_range": true,
-      "confidence": "medium",
-      "shared_genes": [
-        "APOE",
-        "BCHE",
-        "ACHE"
-      ],
-      "shared_pathways": [
-        "Acetylcholine degradation",
-        "Cholinergic signaling"
-      ]
+      "notes": "FDA-approved repurposing from CML."
     },
     {
-      "drug": "Minoxidil",
-      "disease": "alopecia",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.2505173628320407,
-      "in_range": true,
-      "expected_range": [
-        0.15,
-        0.55
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "medium",
-      "shared_genes": [
-        "ABCC9"
-      ],
-      "shared_pathways": [
-        "Potassium channel signaling",
-        "Hair follicle cycling"
-      ]
-    },
-    {
-      "drug": "Dutasteride",
-      "disease": "alopecia",
-      "category": "mechanism_congruent",
-      "status": "found",
-      "score": 0.5231573810100283,
-      "in_range": true,
-      "expected_range": [
-        0.4,
-        0.85
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "SRD5A1",
-        "SRD5A2",
-        "AR",
-        "SRD5A3"
-      ],
-      "shared_pathways": [
-        "5-alpha reductase pathway",
-        "Androgen receptor signaling",
-        "Hair follicle cycling"
-      ]
-    },
-    {
-      "drug": "Aspirin",
-      "disease": "coronary artery disease",
-      "category": "empirical",
-      "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.2,
-        0.7
-      ],
-      "top_3": [
-        [
-          "DIPYRIDAMOLE",
-          0.572
-        ],
-        [
-          "PENTOXIFYLLINE",
-          0.554
-        ],
-        [
-          "ATENOLOL",
-          0.515
-        ]
-      ]
-    },
-    {
-      "drug": "Propranolol",
-      "disease": "essential tremor",
-      "category": "empirical",
-      "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.1,
-        0.55
-      ],
-      "top_3": [
-        [
-          "TOPIRAMATE",
-          0.32
-        ],
-        [
-          "PRIMIDONE",
-          0.277
-        ],
-        [
-          "PROPOFOL",
-          0.237
-        ]
-      ]
-    },
-    {
-      "drug": "Bupropion",
-      "disease": "smoking cessation",
-      "category": "empirical",
-      "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.15,
-        0.55
-      ],
-      "top_3": [
-        [
-          "TOPIRAMATE",
-          0.297
-        ],
-        [
-          "PRIMIDONE",
-          0.264
-        ],
-        [
-          "PROPOFOL",
-          0.206
-        ]
-      ]
-    },
-    {
-      "drug": "Duloxetine",
-      "disease": "fibromyalgia",
-      "category": "empirical",
-      "status": "found",
-      "score": 0.11925748605502245,
-      "in_range": false,
-      "expected_range": [
-        0.15,
-        0.55
-      ],
-      "above_range": false,
-      "below_range": true,
-      "confidence": "low",
-      "shared_genes": [
-        "SLC6A4",
-        "SLC6A2",
-        "DRD3",
-        "HTR2C"
-      ],
-      "shared_pathways": []
-    },
-    {
-      "drug": "Pregabalin",
-      "disease": "fibromyalgia",
-      "category": "empirical",
-      "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.15,
-        0.55
-      ],
-      "top_3": [
-        [
-          "ORPHENADRINE CITRATE",
-          0.603
-        ],
-        [
-          "AMANTADINE",
-          0.507
-        ],
-        [
-          "FELBAMATE",
-          0.507
-        ]
-      ]
-    },
-    {
-      "drug": "Sildenafil",
-      "disease": "Raynaud phenomenon",
-      "category": "empirical",
-      "status": "found",
-      "score": 0.4303603890650769,
-      "in_range": true,
-      "expected_range": [
-        0.15,
-        0.55
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "PDE5A",
-        "NOS3"
-      ],
-      "shared_pathways": [
-        "cGMP-PKG signaling",
-        "Nitric oxide signaling",
-        "Endothelial function",
-        "Pulmonary vascular remodeling"
-      ]
-    },
-    {
-      "drug": "Methotrexate",
+      "drug": "rituximab",
       "disease": "rheumatoid arthritis",
-      "category": "empirical",
       "status": "found",
-      "score": 0.17976106248198997,
-      "in_range": true,
-      "expected_range": [
-        0.15,
-        0.55
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4123,
+      "calibrated_score": 0.8474,
+      "rank": 4,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.4,
+      "mechanism": "CD20+ B-cell depletion; shared inflammatory pathway genes (TNF, IL6)",
+      "sources": [
+        "PMID:15022347"
       ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "medium",
-      "shared_genes": [
-        "GATA3",
-        "ALOX5",
-        "IKZF1",
-        "DHFR",
-        "NR3C1",
-        "TLR4",
-        "TNFAIP3",
-        "NFATC1",
-        "FLT3"
-      ],
-      "shared_pathways": []
+      "notes": "FDA-approved for RA after initial NHL indication."
     },
     {
-      "drug": "Clonidine",
-      "disease": "attention deficit hyperactivity disorder",
-      "category": "empirical",
-      "status": "found",
-      "score": 0.0842582188425992,
-      "in_range": false,
-      "expected_range": [
-        0.1,
-        0.5
-      ],
-      "above_range": false,
-      "below_range": true,
-      "confidence": "low",
-      "shared_genes": [
-        "ADRA2C",
-        "ADRA2B",
-        "ADRA2A"
-      ],
-      "shared_pathways": []
-    },
-    {
-      "drug": "Naltrexone",
-      "disease": "alcohol use disorder",
-      "category": "empirical",
-      "status": "found",
-      "score": 0.22920837067553296,
-      "in_range": true,
-      "expected_range": [
-        0.1,
-        0.5
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "medium",
-      "shared_genes": [
-        "OPRM1",
-        "OPRD1",
-        "OPRK1",
-        "ADH1C"
-      ],
-      "shared_pathways": []
-    },
-    {
-      "drug": "Topiramate",
-      "disease": "migraine prevention",
-      "category": "empirical",
-      "status": "found",
-      "score": 0.504657635185115,
-      "in_range": false,
-      "expected_range": [
-        0.1,
-        0.5
-      ],
-      "above_range": true,
-      "below_range": false,
-      "confidence": "high",
-      "shared_genes": [
-        "SCN11A",
-        "GRIA1",
-        "GABRA1",
-        "GABRA4",
-        "GABRB2",
-        "SCN2A",
-        "GRIK2",
-        "GABRD",
-        "SCN3A",
-        "GRIK3",
-        "SCN9A",
-        "GRIA3",
-        "GABRA3",
-        "GABRA5",
-        "GABRB3",
-        "CA4",
-        "SCN7A",
-        "GRIA2",
-        "SCN5A",
-        "GABRG3",
-        "GABRB1",
-        "GABRP",
-        "GABRA2",
-        "SCN4A",
-        "GABRG2",
-        "SCN8A",
-        "CA2",
-        "GABRG1",
-        "GABRA6",
-        "GABRQ",
-        "SCN10A",
-        "SCN1A",
-        "GRIK4",
-        "GRIA4",
-        "GRIK5",
-        "GRIK1",
-        "GABRE"
-      ],
-      "shared_pathways": []
-    },
-    {
-      "drug": "Metformin",
-      "disease": "colorectal cancer",
-      "category": "literature_supported",
-      "status": "found",
-      "score": 0.2208378058611341,
-      "in_range": true,
-      "expected_range": [
-        0.2,
-        0.6
-      ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "medium",
-      "shared_genes": [
-        "EGFR",
-        "PIK3CA",
-        "TCF7L2",
-        "TSC1",
-        "PPARG",
-        "MTOR",
-        "NRAS",
-        "PTEN",
-        "KRAS",
-        "MAP2K1"
-      ],
-      "shared_pathways": []
-    },
-    {
-      "drug": "Atorvastatin",
-      "disease": "coronary artery disease",
-      "category": "literature_supported",
+      "drug": "finasteride",
+      "disease": "benign prostatic hyperplasia",
       "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.25,
-        0.65
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4119,
+      "calibrated_score": 0.8473,
+      "rank": 3,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "5-alpha-reductase inhibition; shared SRD5A1/SRD5A2 pathway",
+      "sources": [
+        "PMID:1279543"
       ],
-      "top_3": [
-        [
-          "DIPYRIDAMOLE",
-          0.572
-        ],
-        [
-          "PENTOXIFYLLINE",
-          0.554
-        ],
-        [
-          "ATENOLOL",
-          0.515
-        ]
-      ]
+      "notes": "Primary indication \u2014 positive control."
     },
     {
-      "drug": "Doxycycline",
-      "disease": "rosacea",
-      "category": "literature_supported",
-      "status": "found",
-      "score": 0.11804779162934327,
-      "in_range": true,
-      "expected_range": [
-        0.1,
-        0.45
+      "drug": "colchicine",
+      "disease": "gout",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2421,
+      "calibrated_score": 0.765,
+      "rank": 72,
+      "expected_rank_top_n": 10,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.55,
+      "mechanism": "Microtubule polymerisation inhibition; primary indication",
+      "sources": [
+        "PMID:19252078"
       ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "low",
-      "shared_genes": [
-        "MMP13",
-        "MMP7",
-        "MMP1",
-        "MMP8"
-      ],
-      "shared_pathways": []
+      "notes": "Primary indication \u2014 positive control."
     },
     {
-      "drug": "Colchicine",
+      "drug": "colchicine",
       "disease": "pericarditis",
-      "category": "literature_supported",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1609,
+      "calibrated_score": 0.7161,
+      "rank": 3,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "pass": false,
+      "min_score_threshold": 0.35,
+      "mechanism": "NLRP3 inflammasome inhibition; shared IL1B pathway genes",
+      "sources": [
+        "PMID:23992557"
+      ],
+      "notes": "FDA-approved for recurrent pericarditis. Added in v2."
+    },
+    {
+      "drug": "aspirin",
+      "disease": "colorectal cancer",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1226,
+      "calibrated_score": 0.691,
+      "rank": 126,
+      "expected_rank_top_n": 25,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.3,
+      "mechanism": "COX-2/PTGS2 inhibition \u2192 prostaglandin reduction \u2192 anti-proliferative",
+      "sources": [
+        "PMID:21562262",
+        "PMID:26222032"
+      ],
+      "notes": "Strong epidemiological and trial evidence. Score may be moderate because CRC gene associations are broad."
+    },
+    {
+      "drug": "propranolol",
+      "disease": "infantile hemangioma",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 436,
+      "expected_rank_top_n": 30,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.3,
+      "mechanism": "Beta-adrenergic blockade \u2192 anti-angiogenic; VEGF pathway shared",
+      "sources": [
+        "PMID:18940929"
+      ],
+      "notes": "FDA breakthrough therapy. Score may be moderate \u2014 disease genes sparse in OpenTargets for rare pediatric conditions."
+    },
+    {
+      "drug": "sirolimus",
+      "disease": "tuberous sclerosis",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1464,
+      "calibrated_score": 0.7067,
+      "rank": 58,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "mTOR pathway inhibition; TSC1/TSC2 direct targets of mTOR signaling",
+      "sources": [
+        "PMID:23561269"
+      ],
+      "notes": "Strong mechanistic signal expected via mTOR pathway overlap."
+    },
+    {
+      "drug": "hydroxychloroquine",
+      "disease": "systemic lupus erythematosus",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0793,
+      "calibrated_score": 0.6613,
+      "rank": 20,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.4,
+      "mechanism": "TLR9 inhibition, autophagy modulation; shared interferonopathy pathway",
+      "sources": [
+        "PMID:14693966"
+      ],
+      "notes": "Standard of care for SLE."
+    },
+    {
+      "drug": "lenalidomide",
+      "disease": "multiple myeloma",
       "status": "found",
-      "score": 0.16087530563166766,
-      "in_range": true,
-      "expected_range": [
-        0.15,
-        0.55
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.5032,
+      "calibrated_score": 0.8808,
+      "rank": 2,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "IKZF1/IKZF3 degradation via CRBN; immunomodulatory",
+      "sources": [
+        "PMID:24382584"
       ],
-      "above_range": false,
-      "below_range": false,
-      "confidence": "medium",
-      "shared_genes": [
-        "TUBB8",
-        "TUB",
-        "TUBB1",
-        "TUBB6",
-        "TUBB2B",
-        "TUBB2A",
-        "TUBB4A",
-        "TUBB",
-        "TUBB4B",
-        "TUBB3"
-      ],
-      "shared_pathways": []
+      "notes": "Thalidomide analogue. Approved for MM after MDS."
     },
     {
-      "drug": "Azithromycin",
-      "disease": "diffuse panbronchiolitis",
-      "category": "literature_supported",
-      "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.1,
-        0.45
+      "drug": "letrozole",
+      "disease": "breast cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6335,
+      "calibrated_score": 0.9175,
+      "rank": 10,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.5,
+      "mechanism": "Aromatase (CYP19A1) inhibition \u2192 estrogen reduction",
+      "sources": [
+        "PMID:9470415"
       ],
-      "top_3": [
-        [
-          "GEMCITABINE",
-          0.031
-        ],
-        [
-          "CARBOPLATIN",
-          0.031
-        ],
-        [
-          "PRAZOSIN",
-          0.0
-        ]
-      ]
+      "notes": "Primary indication for hormone-receptor-positive breast cancer."
     },
     {
-      "drug": "Losartan",
-      "disease": "Marfan syndrome",
-      "category": "literature_supported",
+      "drug": "gabapentin",
+      "disease": "epilepsy",
       "status": "false_negative",
-      "reason": "not in top 100",
-      "score": null,
-      "expected_range": [
-        0.15,
-        0.55
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2152,
+      "calibrated_score": 0.7494,
+      "rank": 115,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.45,
+      "mechanism": "CACNA2D1 subunit inhibition \u2192 reduced calcium influx \u2192 neuronal stabilisation",
+      "sources": [
+        "PMID:8602533"
       ],
-      "top_3": [
-        [
-          "LABETALOL",
-          0.5
-        ],
-        [
-          "SOTALOL",
-          0.5
-        ],
-        [
-          "DESIPRAMINE",
-          0.5
-        ]
-      ]
+      "notes": "DGIdb CACNA2D1 data may be missing; pipeline falls back to KNOWN_BIOLOGIC_TARGETS for this drug (documented in data_fetcher.py). Test verifies that fallback does not silently fail."
+    },
+    {
+      "drug": "olaparib",
+      "disease": "ovarian cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6188,
+      "calibrated_score": 0.914,
+      "rank": 9,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.55,
+      "mechanism": "PARP1/2 inhibition \u2192 synthetic lethality in BRCA1/2-mutant cells",
+      "sources": [
+        "PMID:24882576"
+      ],
+      "notes": "Strong BRCA1/BRCA2 shared gene signal expected."
+    },
+    {
+      "drug": "nivolumab",
+      "disease": "non-small cell lung carcinoma",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": null,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.45,
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1 / CD274 pathway",
+      "sources": [
+        "PMID:25359623"
+      ],
+      "notes": "First indication was melanoma; NSCLC is a repurposing."
+    },
+    {
+      "drug": "pembrolizumab",
+      "disease": "melanoma",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": null,
+      "expected_rank_top_n": 10,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1 / CD274 / TMB pathway",
+      "sources": [
+        "PMID:25265492"
+      ],
+      "notes": "Primary indication \u2014 positive control for checkpoint inhibitor scoring."
+    },
+    {
+      "drug": "eculizumab",
+      "disease": "paroxysmal nocturnal hemoglobinuria",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.056,
+      "calibrated_score": 0.6447,
+      "rank": 1,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "pass": false,
+      "min_score_threshold": 0.4,
+      "mechanism": "C5 complement inhibition; shared complement pathway (C5, CD59) genes",
+      "sources": [
+        "PMID:18768943"
+      ],
+      "notes": "Rare disease \u2014 gene count in OpenTargets may be low. Score may be at lower bound."
+    },
+    {
+      "drug": "ivacaftor",
+      "disease": "cystic fibrosis",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4085,
+      "calibrated_score": 0.8459,
+      "rank": 3,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "CFTR potentiation (G551D gating mutation); direct CFTR shared gene",
+      "sources": [
+        "PMID:23989293"
+      ],
+      "notes": "Strong single-gene signal (CFTR). Should score well."
+    },
+    {
+      "drug": "nusinersen",
+      "disease": "spinal muscular atrophy",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": null,
+      "expected_rank_top_n": 15,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.45,
+      "mechanism": "Antisense oligonucleotide promoting SMN2 exon 7 inclusion",
+      "sources": [
+        "PMID:28056917"
+      ],
+      "notes": "Strong SMN1/SMN2 gene signal expected."
+    },
+    {
+      "drug": "ezetimibe",
+      "disease": "hypercholesterolemia",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0278,
+      "calibrated_score": 0.6242,
+      "rank": 209,
+      "expected_rank_top_n": 10,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.5,
+      "mechanism": "NPC1L1 inhibition \u2192 reduced cholesterol absorption",
+      "sources": [
+        "PMID:14523140"
+      ],
+      "notes": "Primary indication."
+    },
+    {
+      "drug": "empagliflozin",
+      "disease": "heart failure",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0267,
+      "calibrated_score": 0.6234,
+      "rank": 438,
+      "expected_rank_top_n": 20,
+      "rank_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.35,
+      "mechanism": "SGLT2 inhibition \u2192 diuresis, cardiac preload reduction; shared NPPA/NPPB pathway genes",
+      "sources": [
+        "PMID:33093160"
+      ],
+      "notes": "Repurposed from T2DM. Added in v2 as recent high-impact repurposing."
     }
   ],
   "negative_cases": [
     {
-      "drug": "Aspirin",
-      "disease": "Alzheimer disease",
+      "drug": "insulin glargine",
+      "disease": "multiple sclerosis",
       "status": "true_negative_low_score",
-      "score": 0.08246461962052258,
-      "expected_max": 0.3
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 2331,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "No known mechanistic link. MS is autoimmune/neurological; insulin targets INSR in metabolic context.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low. Flags if scoring is too permissive."
     },
     {
-      "drug": "Metformin",
-      "disease": "acute myeloid leukemia",
-      "status": "true_negative_low_score",
-      "score": 0.1706491849068573,
-      "expected_max": 0.35
-    },
-    {
-      "drug": "Ibuprofen",
+      "drug": "warfarin",
       "disease": "Parkinson disease",
-      "status": "true_negative_not_found",
-      "score": 0.0
-    },
-    {
-      "drug": "Warfarin",
-      "disease": "multiple myeloma",
       "status": "true_negative_low_score",
-      "score": 0.0785550047822237,
-      "expected_max": 0.25
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0252,
+      "calibrated_score": 0.6222,
+      "rank": 625,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Warfarin is an anticoagulant targeting VKORC1/CYP2C9; no mechanistic connection to PD neurodegeneration.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
     },
     {
-      "drug": "Omeprazole",
-      "disease": "Parkinson disease",
-      "status": "true_negative_not_found",
-      "score": 0.0
-    },
-    {
-      "drug": "Metformin",
+      "drug": "omeprazole",
       "disease": "schizophrenia",
-      "status": "true_negative_not_found",
-      "score": 0.0
-    },
-    {
-      "drug": "Atorvastatin",
-      "disease": "Parkinson disease",
-      "status": "true_negative_not_found",
-      "score": 0.0
-    },
-    {
-      "drug": "Lisinopril",
-      "disease": "multiple myeloma",
-      "status": "true_negative_not_found",
-      "score": 0.0
-    },
-    {
-      "drug": "Levothyroxine",
-      "disease": "rheumatoid arthritis",
-      "status": "true_negative_not_found",
-      "score": 0.0
-    },
-    {
-      "drug": "Amlodipine",
-      "disease": "breast carcinoma",
-      "status": "true_negative_not_found",
-      "score": 0.0
-    },
-    {
-      "drug": "Omeprazole",
-      "disease": "rheumatoid arthritis",
-      "status": "false_positive",
-      "score": 0.21395832729531844,
-      "expected_max": 0.2
-    },
-    {
-      "drug": "Warfarin",
-      "disease": "Alzheimer disease",
       "status": "true_negative_low_score",
-      "score": 0.052957914289787536,
-      "expected_max": 0.2
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 1634,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Omeprazole is a PPI (H+/K+ ATPase inhibitor); no known dopamine/glutamate pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
     },
     {
-      "drug": "Albuterol",
-      "disease": "multiple myeloma",
-      "status": "true_negative_not_found",
-      "score": 0.0
+      "drug": "atorvastatin",
+      "disease": "hemophilia A",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 1186,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Atorvastatin targets HMGCR in cholesterol metabolism; hemophilia A is a monogenic coagulation factor VIII deficiency.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low. Tests against rare monogenic disease."
     },
     {
-      "drug": "Metoprolol",
-      "disease": "breast carcinoma",
-      "status": "true_negative_not_found",
-      "score": 0.0
+      "drug": "lisinopril",
+      "disease": "anorexia nervosa",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.6035,
+      "rank": 1167,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "ACE inhibitor; no known eating disorder pathway connection.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
     },
     {
-      "drug": "Pantoprazole",
-      "disease": "Parkinson disease",
-      "status": "true_negative_not_found",
-      "score": 0.0
+      "drug": "levothyroxine",
+      "disease": "inflammatory bowel disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.142,
+      "calibrated_score": 0.7039,
+      "rank": 141,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Thyroid hormone replacement. No IBD mechanistic link.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "amoxicillin",
+      "disease": "hypertrophic cardiomyopathy",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.03,
+      "calibrated_score": 0.6258,
+      "rank": 1109,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Beta-lactam antibiotic. HCM is a genetic sarcomere disorder; no pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "donepezil",
+      "disease": "amyotrophic lateral sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0222,
+      "calibrated_score": 0.62,
+      "rank": 327,
+      "expected_rank_top_n": 0,
+      "rank_pass": null,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "AChE inhibitor; ALS involves motor neuron degeneration via TDP-43/SOD1 pathways, not cholinergic deficit.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "ALS and AD share some neurodegeneration genes. This tests whether the pipeline over-generalises across neurological diseases."
     }
   ],
-  "metrics": {
-    "main_algorithm": {
-      "sensitivity": 0.6764705882352942,
-      "specificity": 0.9333333333333333,
-      "precision": 0.9583333333333334,
-      "f1": 0.7931034482758621
-    },
-    "baselines": {
-      "cosine": {
-        "sensitivity": 0.6470588235294118,
-        "specificity": 0.9333333333333333,
-        "precision": 0.9565217391304348
-      },
-      "text": {
-        "sensitivity": 0.058823529411764705,
-        "specificity": 0.8666666666666667,
-        "precision": 0.5
-      },
-      "jaccard": {
-        "sensitivity": 0.5882352941176471,
-        "specificity": 0.8,
-        "precision": 0.8695652173913043
-      },
-      "gene_count": {
-        "sensitivity": 0.5882352941176471,
-        "specificity": 0.8,
-        "precision": 0.8695652173913043
-      },
-      "random": {
-        "sensitivity": 0.058823529411764705,
-        "specificity": 1.0,
-        "precision": 1.0
-      }
-    },
-    "lift_over_random": 0.47647058823529415,
-    "per_category": {
-      "mechanism_congruent": {
-        "tp": 14,
-        "fn": 4,
-        "sensitivity": 0.7777777777777778
-      },
-      "empirical": {
-        "tp": 6,
-        "fn": 4,
-        "sensitivity": 0.6
-      },
-      "literature_supported": {
-        "tp": 3,
-        "fn": 3,
-        "sensitivity": 0.5
-      }
+  "out_of_scope_cases": [
+    {
+      "drug": "tocilizumab",
+      "disease": "cytokine release syndrome",
+      "reason": "CRS is a syndrome, not a discrete disease with a stable EFO ontology entry. OpenTargets returns non-deterministic gene sets for CRS across API versions, making score comparison across pipeline runs unreliable. Tocilizumab/CRS was included in v2 (n=34) but is excluded in v3 (n=33) to maintain reproducibility. The IL6 pathway rationale is valid and should be included in the Methods section discussion of IL-6 signalling.",
+      "version_removed": "v3"
     }
-  },
-  "passed": true,
-  "n_test_cases": 34,
-  "n_negative_controls": 15
+  ]
 }

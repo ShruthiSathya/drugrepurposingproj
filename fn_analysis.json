@@ -1,0 +1,302 @@
+{
+  "summary": {
+    "n_positive_cases": 25,
+    "n_false_negatives": 18,
+    "fn_rate": 0.72,
+    "fn_rate_percent": 72.0,
+    "category_breakdown": {
+      "score_below_threshold": 15,
+      "drug_not_found": 3
+    }
+  },
+  "false_negative_cases": [
+    {
+      "drug": "sildenafil",
+      "disease": "pulmonary arterial hypertension",
+      "raw_score": 0.2795,
+      "rank": 31,
+      "min_score_expected": 0.55,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "PDE5 inhibition \u2192 cGMP elevation \u2192 vasodilation; shared VEGF/NO pathway genes",
+      "sources": [
+        "PMID:15951850",
+        "PMID:17065669"
+      ],
+      "notes": "FDA-approved for PAH. Strong shared pathway signal expected."
+    },
+    {
+      "drug": "metformin",
+      "disease": "type 2 diabetes mellitus",
+      "raw_score": 0.2001,
+      "rank": 40,
+      "min_score_expected": 0.6,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "AMPK activation \u2192 glucose uptake; primary indication, used as positive control",
+      "sources": [
+        "PMID:9742976"
+      ],
+      "notes": "Primary indication \u2014 highest expected score. Confirms scoring floor."
+    },
+    {
+      "drug": "metformin",
+      "disease": "polycystic ovary syndrome",
+      "raw_score": 0.0758,
+      "rank": 241,
+      "min_score_expected": 0.4,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "Insulin sensitisation; shared INSR/AMPK pathway genes with PCOS",
+      "sources": [
+        "PMID:12849456",
+        "PMID:23044908"
+      ],
+      "notes": "Off-label use well-supported by RCTs. Added in v2."
+    },
+    {
+      "drug": "finasteride",
+      "disease": "benign prostatic hyperplasia",
+      "raw_score": 0.4119,
+      "rank": 3,
+      "min_score_expected": 0.5,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "5-alpha-reductase inhibition; shared SRD5A1/SRD5A2 pathway",
+      "sources": [
+        "PMID:1279543"
+      ],
+      "notes": "Primary indication \u2014 positive control."
+    },
+    {
+      "drug": "colchicine",
+      "disease": "gout",
+      "raw_score": 0.2421,
+      "rank": 72,
+      "min_score_expected": 0.55,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "Microtubule polymerisation inhibition; primary indication",
+      "sources": [
+        "PMID:19252078"
+      ],
+      "notes": "Primary indication \u2014 positive control."
+    },
+    {
+      "drug": "colchicine",
+      "disease": "pericarditis",
+      "raw_score": 0.1609,
+      "rank": 3,
+      "min_score_expected": 0.35,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "NLRP3 inflammasome inhibition; shared IL1B pathway genes",
+      "sources": [
+        "PMID:23992557"
+      ],
+      "notes": "FDA-approved for recurrent pericarditis. Added in v2."
+    },
+    {
+      "drug": "aspirin",
+      "disease": "colorectal cancer",
+      "raw_score": 0.1226,
+      "rank": 126,
+      "min_score_expected": 0.3,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "COX-2/PTGS2 inhibition \u2192 prostaglandin reduction \u2192 anti-proliferative",
+      "sources": [
+        "PMID:21562262",
+        "PMID:26222032"
+      ],
+      "notes": "Strong epidemiological and trial evidence. Score may be moderate because CRC gene associations are broad."
+    },
+    {
+      "drug": "propranolol",
+      "disease": "infantile hemangioma",
+      "raw_score": 0.0,
+      "rank": 436,
+      "min_score_expected": 0.3,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "Beta-adrenergic blockade \u2192 anti-angiogenic; VEGF pathway shared",
+      "sources": [
+        "PMID:18940929"
+      ],
+      "notes": "FDA breakthrough therapy. Score may be moderate \u2014 disease genes sparse in OpenTargets for rare pediatric conditions.",
+      "fallback_dependency": "May need fallback \u2014 beta-adrenergic targets sparse in DGIdb",
+      "fallback_investigation": "Check data_fetcher.py logs for 'Using fallback targets' message for this drug. If fallback was NOT triggered, the drug had targets from DGIdb but they did not produce pathway overlap. If fallback WAS triggered, verify the hardcoded target list includes the expected gene.",
+      "sparse_disease_warning": "Rare pediatric condition; limited OT associations"
+    },
+    {
+      "drug": "sirolimus",
+      "disease": "tuberous sclerosis",
+      "raw_score": 0.1464,
+      "rank": 58,
+      "min_score_expected": 0.5,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "mTOR pathway inhibition; TSC1/TSC2 direct targets of mTOR signaling",
+      "sources": [
+        "PMID:23561269"
+      ],
+      "notes": "Strong mechanistic signal expected via mTOR pathway overlap.",
+      "sparse_disease_warning": "mTOR genes present but disease called 'tuberous sclerosis complex'"
+    },
+    {
+      "drug": "hydroxychloroquine",
+      "disease": "systemic lupus erythematosus",
+      "raw_score": 0.0793,
+      "rank": 20,
+      "min_score_expected": 0.4,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "TLR9 inhibition, autophagy modulation; shared interferonopathy pathway",
+      "sources": [
+        "PMID:14693966"
+      ],
+      "notes": "Standard of care for SLE.",
+      "fallback_dependency": "TLR9/autophagy targets sparse in DGIdb for this drug name",
+      "fallback_investigation": "Check data_fetcher.py logs for 'Using fallback targets' message for this drug. If fallback was NOT triggered, the drug had targets from DGIdb but they did not produce pathway overlap. If fallback WAS triggered, verify the hardcoded target list includes the expected gene."
+    },
+    {
+      "drug": "gabapentin",
+      "disease": "epilepsy",
+      "raw_score": 0.2152,
+      "rank": 115,
+      "min_score_expected": 0.45,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "CACNA2D1 subunit inhibition \u2192 reduced calcium influx \u2192 neuronal stabilisation",
+      "sources": [
+        "PMID:8602533"
+      ],
+      "notes": "DGIdb CACNA2D1 data may be missing; pipeline falls back to KNOWN_BIOLOGIC_TARGETS for this drug (documented in data_fetcher.py). Test verifies that fallback does not silently fail.",
+      "fallback_dependency": "Uses KNOWN_BIOLOGIC_TARGETS fallback for CACNA2D1",
+      "fallback_investigation": "Check data_fetcher.py logs for 'Using fallback targets' message for this drug. If fallback was NOT triggered, the drug had targets from DGIdb but they did not produce pathway overlap. If fallback WAS triggered, verify the hardcoded target list includes the expected gene."
+    },
+    {
+      "drug": "nivolumab",
+      "disease": "non-small cell lung carcinoma",
+      "raw_score": 0.0,
+      "rank": null,
+      "min_score_expected": 0.45,
+      "category": "drug_not_found",
+      "remediation": "Drug not in candidate list at all. Likely causes: (1) Drug name in validation_dataset.py does not match ChEMBL preferred name. (2) Drug has no targets from DGIdb or fallback. (3) Drug filtered out before scoring. Check: data_fetcher.py logs for this drug name.",
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1 / CD274 pathway",
+      "sources": [
+        "PMID:25359623"
+      ],
+      "notes": "First indication was melanoma; NSCLC is a repurposing."
+    },
+    {
+      "drug": "pembrolizumab",
+      "disease": "melanoma",
+      "raw_score": 0.0,
+      "rank": null,
+      "min_score_expected": 0.5,
+      "category": "drug_not_found",
+      "remediation": "Drug not in candidate list at all. Likely causes: (1) Drug name in validation_dataset.py does not match ChEMBL preferred name. (2) Drug has no targets from DGIdb or fallback. (3) Drug filtered out before scoring. Check: data_fetcher.py logs for this drug name.",
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1 / CD274 / TMB pathway",
+      "sources": [
+        "PMID:25265492"
+      ],
+      "notes": "Primary indication \u2014 positive control for checkpoint inhibitor scoring."
+    },
+    {
+      "drug": "eculizumab",
+      "disease": "paroxysmal nocturnal hemoglobinuria",
+      "raw_score": 0.056,
+      "rank": 1,
+      "min_score_expected": 0.4,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "C5 complement inhibition; shared complement pathway (C5, CD59) genes",
+      "sources": [
+        "PMID:18768943"
+      ],
+      "notes": "Rare disease \u2014 gene count in OpenTargets may be low. Score may be at lower bound.",
+      "sparse_disease_warning": "Rare; complement pathway genes may be sparse"
+    },
+    {
+      "drug": "ivacaftor",
+      "disease": "cystic fibrosis",
+      "raw_score": 0.4085,
+      "rank": 3,
+      "min_score_expected": 0.5,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "CFTR potentiation (G551D gating mutation); direct CFTR shared gene",
+      "sources": [
+        "PMID:23989293"
+      ],
+      "notes": "Strong single-gene signal (CFTR). Should score well."
+    },
+    {
+      "drug": "nusinersen",
+      "disease": "spinal muscular atrophy",
+      "raw_score": 0.0,
+      "rank": null,
+      "min_score_expected": 0.45,
+      "category": "drug_not_found",
+      "remediation": "Drug not in candidate list at all. Likely causes: (1) Drug name in validation_dataset.py does not match ChEMBL preferred name. (2) Drug has no targets from DGIdb or fallback. (3) Drug filtered out before scoring. Check: data_fetcher.py logs for this drug name.",
+      "mechanism": "Antisense oligonucleotide promoting SMN2 exon 7 inclusion",
+      "sources": [
+        "PMID:28056917"
+      ],
+      "notes": "Strong SMN1/SMN2 gene signal expected."
+    },
+    {
+      "drug": "ezetimibe",
+      "disease": "hypercholesterolemia",
+      "raw_score": 0.0278,
+      "rank": 209,
+      "min_score_expected": 0.5,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "NPC1L1 inhibition \u2192 reduced cholesterol absorption",
+      "sources": [
+        "PMID:14523140"
+      ],
+      "notes": "Primary indication."
+    },
+    {
+      "drug": "empagliflozin",
+      "disease": "heart failure",
+      "raw_score": 0.0267,
+      "rank": 438,
+      "min_score_expected": 0.35,
+      "category": "score_below_threshold",
+      "remediation": "Score computed but below expected minimum. Investigate: (1) Are drug targets present in DGIdb/fallback? (2) Does OpenTargets return the expected disease genes? (3) Is the mechanism correctly captured by the pathway mapper?",
+      "mechanism": "SGLT2 inhibition \u2192 diuresis, cardiac preload reduction; shared NPPA/NPPB pathway genes",
+      "sources": [
+        "PMID:33093160"
+      ],
+      "notes": "Repurposed from T2DM. Added in v2 as recent high-impact repurposing."
+    }
+  ],
+  "diagnostics": {
+    "fallback_dependency": {
+      "drugs_at_risk_of_fallback_issues": [
+        "propranolol",
+        "hydroxychloroquine",
+        "gabapentin"
+      ],
+      "fallback_counter_note": "data_fetcher.py logs a 'Using fallback targets' message each time the KNOWN_BIOLOGIC_TARGETS / KNOWN_SMALL_MOLECULE_TARGETS fallback is triggered. To count these for the paper Methods section: grep the run log for 'Using fallback targets' and count occurrences. TODO: Add _fallback_usage_count to pipeline diagnostics output so this script can surface the count automatically.",
+      "methods_disclosure_required": "The paper Methods section must disclose: 'When all live API sources (ChEMBL, DGIdb) returned zero targets for an approved drug, the pipeline fell back to a curated last-resort target list (KNOWN_BIOLOGIC_TARGETS, KNOWN_SMALL_MOLECULE_TARGETS) derived from primary pharmacological literature (FDA product labels, peer-reviewed pharmacology references). This fallback was triggered for [N] drugs in the validation set and [M] drugs in the full analysis. The full fallback list is available in data_fetcher.py and as Supplementary Table S{X}.'"
+    },
+    "sparse_disease_genes": {
+      "infantile hemangioma": "Rare pediatric condition; limited OT associations",
+      "paroxysmal nocturnal hemoglobinuria": "Rare; complement pathway genes may be sparse",
+      "cytokine release syndrome": "Syndrome (not disease); non-deterministic OT results",
+      "tuberous sclerosis": "mTOR genes present but disease called 'tuberous sclerosis complex'"
+    },
+    "recommended_investigations": [
+      "1. Check data_fetcher.py logs for each FN drug \u2014 did it log    'Using fallback targets'? If not, was it in DGIdb?",
+      "2. For score_below_threshold cases: check which genes/pathways    were returned by OpenTargets for each disease.",
+      "3. For drug_not_found cases: verify drug name in ChEMBL matches    validation_dataset.py (try 'imatinib mesylate' vs 'imatinib').",
+      "4. For disease_not_found cases: add alias to DISEASE_ALIASES in    data_fetcher.py.",
+      "5. After fixes: re-run validate_all.sh and confirm FN count decreases."
+    ]
+  }
+}
