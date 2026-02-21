@@ -102,20 +102,6 @@ if [[ $HAS_JQ -eq 1 ]]; then
     fi
 fi
 #==============================================================================
-# ── RepoDB benchmark ──────────────────────────────────────────────────────────
-echo ""
-echo "Running RepoDB benchmark..."
-python3 repodb_benchmark.py \
-    --repodb-file repodb.csv \
-    --output repodb_benchmark_results.json \
-    --top-n 50
-
-if [ $? -ne 0 ]; then
-    echo "ERROR: RepoDB benchmark failed." >&2
-    exit 1
-fi
-echo "RepoDB benchmark complete → repodb_benchmark_results.json" 
-
 # =============================================================================
 # STEP 2: Score Calibration Analysis
 # =============================================================================
@@ -189,11 +175,7 @@ log_section "STEP 3/5: RepoDB Benchmark"
 
 if [[ $SKIP_REPODB -eq 1 ]]; then
     log_warn "RepoDB benchmark SKIPPED."
-    log_warn "Download: https://unmtid-shinyapps.net/shiny/repodb/"
-    log_warn "Run with: ./validate_all.sh --repodb-file path/to/repodb.csv"
-elif [[ ! -f "$REPODB_FILE" ]]; then
-    log_warn "RepoDB file not found: $REPODB_FILE — skipping."
-    SKIP_REPODB=1
+    log_warn "Run without --skip-repodb to enable."
 else
     python3 repodb_benchmark.py \
         --repodb-file "$REPODB_FILE" \
