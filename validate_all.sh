@@ -101,6 +101,20 @@ if [[ $HAS_JQ -eq 1 ]]; then
         log_warn "  n_test_cases = $N_CASES (expected 55 — check validation_dataset.py)"
     fi
 fi
+#==============================================================================
+# ── RepoDB benchmark ──────────────────────────────────────────────────────────
+echo ""
+echo "Running RepoDB benchmark..."
+python3 repodb_benchmark.py \
+    --repodb-file repodb.csv \
+    --output repodb_benchmark_results.json \
+    --top-n 50
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: RepoDB benchmark failed." >&2
+    exit 1
+fi
+echo "RepoDB benchmark complete → repodb_benchmark_results.json" 
 
 # =============================================================================
 # STEP 2: Score Calibration Analysis

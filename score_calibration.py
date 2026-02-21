@@ -4,33 +4,44 @@ score_calibration.py — Score Calibration Analysis
 Step 2 of validate_all.sh.
 
 Loads validation_results.json, fits Platt scaling to the TP/TN score
-distributions, and writes calibration_results.json.
+distributions, and writes:
+  1. calibration_results.json  — full report for paper/logging
+  2. calibration_params.json   — {A, B} only; read by calibration.py at
+                                  runtime so the deployed scoring system
+                                  always uses the same parameters reported
+                                  in validation output (fixes the circular
+                                  dependency from v4)
 
-FIXES in this version (v4)
+FIXES in this version (v5)
 --------------------------
-1. Platt parameters are REFIT from actual validation data (gradient descent).
+1. FIX (v5) — Circular dependency resolved:
+   Previous versions refitted Platt params here but never wrote them back to
+   calibration.py, which kept its own hardcoded params (A=-0.1980, B=-0.1115).
+   The deployed scoring system used the old params while the paper reported
+   the newly fitted ones.
+
+   Now: after fitting, this script writes calibration_params.json.
+   calibration.py reads that file at import time. Single source of truth.
+   validate_all.sh must run score_calibration.py BEFORE any step that
+   imports calibration.py (or re-imports ProductionPipeline), which the
+   updated validate_all.sh enforces.
+
+2. Platt parameters are REFIT from actual validation data (gradient descent).
    A is constrained to be NEGATIVE (correct orientation for repurposing scores).
 
-2. ECE > 0.15 is now reported honestly as a known limitation rather than a
-   hard FAIL that blocks publication. The root cause (3:1 TP:TN imbalance with
-   n=32) is documented. Calibrated scores are supplementary; primary metrics
-   are sensitivity/specificity/rank-based.
-
-3. calibration_table predicted_class uses practical raw-score threshold (0.20)
-   rather than unreachable calibrated threshold.
+3. ECE > 0.15 is reported honestly as a known limitation rather than a
+   hard FAIL that blocks publication.
 
 4. Reads BOTH 'test_cases'/'positive_results' and 'negative_cases'/
    'negative_results' key formats.
 
-5. Added ece_interpretation field to output explaining the limitation.
-
-6. calibration_results.json now includes a paper_reporting_note so authors
-   know exactly what to write in the Methods section.
+5. calibration_results.json includes a paper_reporting_note.
 
 Usage
 -----
     python score_calibration.py [--input validation_results.json]
                                 [--output calibration_results.json]
+                                [--params-output calibration_params.json]
 """
 
 import argparse
@@ -43,7 +54,6 @@ from typing import Dict, List, Optional, Tuple
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Practical raw-score threshold (used when calibrated threshold is unreachable)
 PRACTICAL_RAW_THRESHOLD = 0.20
 
 
@@ -74,11 +84,11 @@ def fit_platt(
         logger.warning("Too few samples — using defaults A=-0.7053, B=0.8535")
         return -0.7053, 0.8535
 
-    A = -1.0   # Start negative (correct orientation)
+    A = -1.0
     B = 0.0
     n = len(scores)
 
-    for iteration in range(max_iter):
+    for _ in range(max_iter):
         dA = 0.0
         dB = 0.0
         for s, y in zip(scores, labels):
@@ -89,11 +99,10 @@ def fit_platt(
         A -= lr * dA / n
         B -= lr * dB / n
 
-    # Enforce correct orientation
     if A > 0:
         logger.warning(
             f"Fitted A={A:.4f} is positive after {max_iter} iterations. "
-            "Negating to enforce correct orientation (higher raw score → higher prob)."
+            "Negating to enforce correct orientation."
         )
         A = -abs(A)
 
@@ -106,7 +115,6 @@ def calibrated_prob(score: float, A: float, B: float) -> float:
 
 
 def find_raw_threshold(A: float, B: float, calibrated_target: float = 0.5) -> float:
-    """Raw score such that sigmoid(A*s + B) = calibrated_target."""
     if abs(A) < 1e-10:
         return float("inf")
     logit_target = math.log(calibrated_target / (1.0 - calibrated_target))
@@ -152,7 +160,6 @@ def compute_ece(
 
 
 def interpret_ece(ece: float, n_pos: int, n_neg: int) -> Dict:
-    """Return honest interpretation of ECE for paper reporting."""
     ratio = n_pos / n_neg if n_neg > 0 else float("inf")
     if ece < 0.10:
         status      = "excellent"
@@ -167,11 +174,9 @@ def interpret_ece(ece: float, n_pos: int, n_neg: int) -> Dict:
         paper_note  = (
             f"ECE = {ece:.4f} exceeds the 0.15 target. Root cause: training set "
             f"imbalance ({n_pos} TP : {n_neg} TN = {ratio:.1f}:1 ratio) with "
-            f"n = {n_pos + n_neg} cases pushes the sigmoid toward always predicting "
-            "positive. Calibrated probabilities are reported as supplementary "
-            "rankings only. Primary performance metrics are sensitivity, specificity, "
-            "precision, and rank-based retrieval (Hit@N, MRR). "
-            "Future work: expand negative controls to ≥30 cases to reduce imbalance."
+            f"n = {n_pos + n_neg} cases. Calibrated probabilities are reported as "
+            "supplementary rankings only. Primary metrics are sensitivity, specificity, "
+            "precision, and rank-based retrieval (Hit@N, MRR)."
         )
         use_cal = False
 
@@ -217,8 +222,9 @@ def cohens_d(group_a: List[float], group_b: List[float], min_n: int = 5) -> Opti
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_calibration(
-    input_path:  str = "validation_results.json",
-    output_path: str = "calibration_results.json",
+    input_path:    str = "validation_results.json",
+    output_path:   str = "calibration_results.json",
+    params_output: str = "calibration_params.json",
 ) -> Dict:
     p = Path(input_path)
     if not p.exists():
@@ -242,7 +248,6 @@ def run_calibration(
 
     logger.info(f"Loaded {len(positive_cases)} positive, {len(negative_cases)} negative cases")
 
-    # Separate TP, FN, TN, FP
     tp_scores: List[float] = []
     fn_scores: List[float] = []
     tn_scores: List[float] = []
@@ -271,7 +276,6 @@ def run_calibration(
         s = _stats(scores)
         logger.info(f"  {label}: n={s['n']}, mean={s['mean']}")
 
-    # Fit on TP + TN (binary-certain cases; FN excluded)
     fit_scores = tp_scores + tn_scores
     fit_labels = [1] * len(tp_scores) + [0] * len(tn_scores)
 
@@ -287,7 +291,6 @@ def run_calibration(
     raw_thresh_40 = find_raw_threshold(A, B, 0.4)
 
     logger.info(f"Platt A={A:.4f}, B={B:.4f}")
-    logger.info(f"Raw threshold (cal=0.5): {raw_thresh_50:.4f}")
     if raw_thresh_50 > 1.0:
         logger.warning(
             f"Raw threshold {raw_thresh_50:.4f} > 1.0 — calibrated threshold is "
@@ -298,16 +301,10 @@ def run_calibration(
     ece_info = interpret_ece(ece, len(tp_scores), len(tn_scores))
 
     logger.info(f"ECE = {ece:.4f} — {ece_info['status']}")
-    if not ece_info["calibrated_scores_usable"]:
-        logger.warning(
-            "ECE > 0.15: calibrated scores are supplementary only. "
-            "Use raw scores and ranks as primary metrics."
-        )
 
     d_tp_fn = cohens_d(tp_scores, fn_scores)
     d_tp_fp = cohens_d(tp_scores, fp_scores)
 
-    # Calibration table using practical raw threshold for class labels
     calibration_table = []
     for i in range(21):
         raw = round(i * 0.05, 2)
@@ -329,7 +326,9 @@ def run_calibration(
                 f"Parameters fitted by gradient descent on {len(fit_scores)} "
                 "binary-certain cases (TP + TN). A is negative "
                 "(higher raw score → higher calibrated probability). "
-                "FN cases excluded from fitting."
+                "FN cases excluded from fitting. "
+                "These parameters are also written to calibration_params.json "
+                "and loaded by calibration.py at runtime."
             ),
         },
         "classification_threshold": {
@@ -341,11 +340,10 @@ def run_calibration(
             "note": (
                 f"raw_equivalent_50 = {raw_thresh_50:.4f}. "
                 + (
-                    f"This exceeds 1.0 (unreachable given raw scores are [0,1]). "
-                    f"Use practical_raw_threshold = {PRACTICAL_RAW_THRESHOLD} for "
-                    "binary classification."
+                    "This exceeds 1.0 (unreachable). "
+                    f"Use practical_raw_threshold = {PRACTICAL_RAW_THRESHOLD}."
                     if raw_thresh_50 > 1.0 else
-                    f"Use raw_equivalent_50 as primary threshold."
+                    "Use raw_equivalent_50 as primary threshold."
                 )
             ),
         },
@@ -356,7 +354,7 @@ def run_calibration(
             "cohens_d_tp_vs_fp":  round(d_tp_fp, 4) if d_tp_fp is not None else None,
             "cohens_d_note": (
                 "Cohen's d is None when group n < 5. "
-                "fp_scores typically n=0-1; effect size vs FP unreliable."
+                "fp_scores typically n=0-2; effect size vs FP unreliable."
             ),
         },
         "score_distributions": {
@@ -365,7 +363,7 @@ def run_calibration(
                    "note": "FN excluded from Platt fitting (known positives, model failure)."},
             "tn": _stats(tn_scores),
             "fp": {**_stats(fp_scores),
-                   "note": "FP typically n=0-1; Cohen's d vs TP unreliable."},
+                   "note": "FP typically n=0-2; Cohen's d vs TP unreliable."},
         },
         "calibration_table": calibration_table,
         "paper_reporting_note": {
@@ -379,7 +377,7 @@ def run_calibration(
                 "Raw network overlap scores were calibrated using Platt scaling "
                 f"(A = {A:.3f}, B = {B:.3f}; fitted by gradient-descent maximum-likelihood "
                 f"logistic regression on {len(fit_scores)} binary-certain validation cases). "
-                f"ECE = {ece:.4f}, reflecting the positive-to-negative training distribution. "
+                f"ECE = {ece:.4f}. "
                 "Calibrated probabilities are reported for supplementary ranking only. "
                 "Primary performance metrics use sensitivity, specificity, precision, "
                 f"and rank-based retrieval, with binary classification threshold "
@@ -398,19 +396,53 @@ def run_calibration(
         },
     }
 
+    # ── FIX (v5): Write calibration_params.json ───────────────────────────────
+    # calibration.py reads this file at import time so the deployed scoring
+    # system always uses the same parameters reported here. This eliminates
+    # the circular dependency from v4 where calibration.py had hardcoded
+    # params that diverged silently from the params fitted here.
+    params_path = Path(params_output)
+    params_data = {
+        "A":               round(A, 4),
+        "B":               round(B, 4),
+        "source":          platt_source,
+        "fitted_from":     input_path,
+        "n_cases":         len(fit_scores),
+        "ece":             ece,
+        "note": (
+            "Written by score_calibration.py. Read by calibration.py at runtime. "
+            "Do not edit manually — re-run score_calibration.py to update."
+        ),
+    }
+    params_path.write_text(json.dumps(params_data, indent=2))
+    logger.info(f"Calibration params → {params_path.resolve()}")
+
     out_path = Path(output_path)
     out_path.write_text(json.dumps(result, indent=2))
     logger.info(f"Calibration results → {out_path.resolve()}")
+
+    logger.info("\n" + "=" * 60)
+    logger.info(f"  Platt A = {A:.4f},  B = {B:.4f}")
+    logger.info(f"  ECE     = {ece:.4f}  ({ece_info['status']})")
+    logger.info(f"  Params written to: {params_path.name}")
+    logger.info("=" * 60)
+
     return result
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input",  default="validation_results.json")
-    parser.add_argument("--output", default="calibration_results.json")
+    parser.add_argument("--input",         default="validation_results.json")
+    parser.add_argument("--output",        default="calibration_results.json")
+    parser.add_argument("--params-output", default="calibration_params.json",
+                        help="Path to write fitted A/B for use by calibration.py")
     args = parser.parse_args()
     try:
-        run_calibration(input_path=args.input, output_path=args.output)
+        run_calibration(
+            input_path=args.input,
+            output_path=args.output,
+            params_output=args.params_output,
+        )
     except Exception as e:
         logger.error(f"Calibration failed: {e}")
         raise

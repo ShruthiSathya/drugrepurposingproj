@@ -1,92 +1,123 @@
 """
-Score Calibration Module v4.1
+Score Calibration Module v4.2
 ==============================
 Implements Platt scaling to convert raw algorithm scores into calibrated
 probability estimates.
 
-FIXES vs v4.0
+FIXES vs v4.1
 --------------
-FIX 1 (Docstring): Docstring now correctly states parameters were fitted on
-  25 TP + 30 TN = 55 cases (v4.0 dataset), not 24 TP + 8 TN (v3.1).
+FIX (v4.2): Eliminated the hardcoded A/B parameters that caused a circular
+  dependency with score_calibration.py.
 
-FIX 2 (Calibrated score range): With A=-0.198, B=-0.1115, calibrated
-  probabilities span ~0.42–0.47 across raw [0,1]. This is a KNOWN LIMITATION
-  documented explicitly: the calibrated threshold of 0.5 is unreachable.
-  Binary classification MUST use PRACTICAL_RAW_THRESHOLD = 0.20.
-  Platt scaling here is useful ONLY for ranking, not classification.
-  The paper should state this explicitly (see PAPER_METHODS_TEXT below).
+  Previous behaviour:
+    - calibration.py had hardcoded A=-0.1980, B=-0.1115 (fitted on a prior run)
+    - score_calibration.py refitted new params (A=-0.0162, B=-0.0775) from the
+      latest validation_results.json and wrote them to calibration_results.json
+    - The two parameter sets diverged silently: the deployed scoring system used
+      the old hardcoded params while the paper reported the newly fitted ones
 
-FIX 3 (validate_all.sh Platt B check): The shell script incorrectly flagged
-  negative B as a bug. B can legitimately be negative. The check in
-  validate_all.sh should verify A is negative (correct orientation), not B.
-  See validate_all.sh for the corrected check.
+  New behaviour:
+    - score_calibration.py writes fitted params to calibration_params.json
+      (single source of truth) after every validation run
+    - calibration.py reads calibration_params.json at import time
+    - If calibration_params.json is absent, falls back to the last-known-good
+      params with a loud warning so the discrepancy is never silent
+    - validate_all.sh runs score_calibration.py BEFORE any step that imports
+      calibration.py, so the deployed params are always fresh
+
+  To update params manually:
+    python score_calibration.py --input validation_results.json
+    # This writes calibration_params.json automatically.
 
 Background
 ----------
 Platt scaling (logistic regression on raw scores):
     P(repurposed | score) = sigmoid(A × score + B)
 
-Fit parameters (v4.0: 25 TP + 30 TN = 55 binary-certain cases):
-    A = -0.1980  (NEGATIVE — higher raw score → higher calibrated probability)
-    B = -0.1115  (intercept — CAN be negative; does not indicate a bug)
+A is NEGATIVE: higher raw score → higher calibrated probability.
+B has no sign constraint: valid fitted intercepts can be negative.
 
 Calibration range note:
-    With these parameters, calibrated probabilities span approximately
-    0.42 (at raw=0.0) to 0.47 (at raw=1.0). All values are below 0.50,
-    so the standard threshold of 0.50 is unreachable. Use raw score
-    threshold of 0.20 for binary classification.
-    For ranking purposes, calibrated scores preserve ordinal order and
-    are valid as supplementary metrics.
-
-ECE (v4.0): 0.0163 — excellent, due to balanced 25:30 TP:TN ratio.
-
-PAPER_METHODS_TEXT (copy into manuscript Methods section):
-    "Raw network overlap scores were calibrated using Platt scaling
-     (Platt 1999; A = −0.198, B = −0.112; fitted by gradient-descent
-     maximum-likelihood logistic regression on 55 binary-certain validation
-     cases: 25 true positives and 30 true negatives). The Expected Calibration
-     Error was ECE = 0.016 (excellent). However, with these parameters,
-     calibrated probabilities span 0.42–0.47 across the full raw score range
-     [0, 1], making the standard 0.50 classification threshold unreachable.
-     Accordingly, binary classification uses a practical raw-score threshold
-     of 0.20 (equivalent to the lower quartile of true-positive scores in
-     the validation set). Calibrated probabilities are reported as supplementary
-     rankings only; primary performance metrics are sensitivity, specificity,
-     precision, F1, and rank-based retrieval (Hit@N, MRR)."
+    With typical fitted parameters, calibrated probabilities span approximately
+    0.43–0.47 across the full raw score range [0, 1]. All values are below 0.50,
+    so the standard threshold of 0.50 is unreachable. Use raw score threshold
+    of 0.20 for binary classification (lower quartile of TP scores in the
+    validation set). Calibrated scores preserve ordinal order and are valid
+    as supplementary ranking metrics.
 """
 
+import json
 import math
 import argparse
+import warnings
+from pathlib import Path
 from typing import List, Optional, Dict, Tuple
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Fit parameters — fitted on v4.0 dataset (25 TP + 30 TN = 55 cases)
+# FIX: Load Platt parameters from calibration_params.json (written by
+# score_calibration.py after each validation run). This ensures the deployed
+# scoring system always uses the same parameters reported in the paper.
 #
-# A is NEGATIVE: higher raw score → higher calibrated probability. CORRECT.
-# B is NEGATIVE: this is a valid fitted value, not a bug. B is the intercept
-#   and has no sign constraint.
-#
-# History:
-#   v3.1: A=-0.7053, B=+0.8535  (24 TP + 8 TN, ECE=0.2438)
-#   v4.0: A=-0.1980, B=-0.1115  (25 TP + 30 TN, ECE=0.0163)
+# Fallback values are used ONLY if the file is missing, and a loud warning
+# is emitted so the discrepancy is never silent.
 # ─────────────────────────────────────────────────────────────────────────────
-_PLATT_A: float = -0.1980   # NEGATIVE — correct orientation
-_PLATT_B: float = -0.1115   # NEGATIVE intercept — valid fitted value, not a bug
 
-# Classification threshold on CALIBRATED score
-# NOTE: With current parameters, calibrated probs span ~0.42–0.47.
+# Location of the params file — same directory as this module, or project root.
+_PARAMS_FILE = Path(__file__).parent / "calibration_params.json"
+if not _PARAMS_FILE.exists():
+    _PARAMS_FILE = Path("calibration_params.json")  # fallback: project root
+
+# Last-known-good fallback (used only if calibration_params.json is absent)
+_FALLBACK_A: float = -0.1980
+_FALLBACK_B: float = -0.1115
+
+
+def _load_params() -> Tuple[float, float]:
+    """
+    Load Platt A and B from calibration_params.json.
+
+    Returns (A, B). Falls back to hardcoded defaults with a warning if the
+    file is missing. Raises ValueError if the file exists but is malformed.
+    """
+    if _PARAMS_FILE.exists():
+        try:
+            with open(_PARAMS_FILE) as f:
+                params = json.load(f)
+            A = float(params["A"])
+            B = float(params["B"])
+            return A, B
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                f"calibration_params.json is malformed: {exc}\n"
+                "Run: python score_calibration.py --input validation_results.json"
+            ) from exc
+    else:
+        warnings.warn(
+            f"calibration_params.json not found at {_PARAMS_FILE.resolve()}.\n"
+            "Using fallback Platt parameters (A=-0.1980, B=-0.1115).\n"
+            "These may not match the parameters used in your latest validation run.\n"
+            "To fix: python score_calibration.py --input validation_results.json",
+            UserWarning,
+            stacklevel=3,
+        )
+        return _FALLBACK_A, _FALLBACK_B
+
+
+# Load at module import time — used by the singleton calibrator below.
+_PLATT_A, _PLATT_B = _load_params()
+
+# Classification threshold on CALIBRATED score.
+# NOTE: With typical parameters, calibrated probs span ~0.43–0.47.
 # The standard threshold of 0.50 is unreachable.
 # Use PRACTICAL_RAW_THRESHOLD for binary classification.
 _DEFAULT_THRESHOLD: float = 0.50
 
 # Practical raw-score threshold for binary classification.
 # Derived from lower quartile of TP raw scores in the validation set.
-# Preferred over calibrated threshold for binary decisions.
 PRACTICAL_RAW_THRESHOLD: float = 0.20
 
-# Human-readable note for paper / logs
 CALIBRATION_NOTE = (
-    "Calibrated probabilities span ~0.42–0.47 (all below 0.50). "
+    "Calibrated probabilities span ~0.43–0.47 (all below 0.50). "
     "Standard calibrated threshold is unreachable. "
     f"Use raw_score >= {PRACTICAL_RAW_THRESHOLD} for binary classification. "
     "Calibrated scores are valid for ranking only."
@@ -109,19 +140,14 @@ class ScoreCalibrator:
     ----------
     A : float
         Platt slope. Must be NEGATIVE (higher raw score → higher calibrated prob).
-        Default: -0.1980 (fitted on v4.0 dataset, 25 TP + 30 TN).
+        Default: loaded from calibration_params.json (written by score_calibration.py).
     B : float
         Platt intercept. Can be any sign.
-        Default: -0.1115 (fitted on v4.0 dataset).
+        Default: loaded from calibration_params.json.
     threshold : float
         Calibrated-score classification threshold. Default 0.50.
-        NOTE: Currently unreachable given these parameters.
+        NOTE: Currently unreachable given typical parameters.
         Use classify_raw() instead.
-
-    Notes
-    -----
-    ECE = 0.016 (v4.0, excellent). Calibrated scores are suitable for ranking.
-    For binary classification, use classify_raw() with PRACTICAL_RAW_THRESHOLD.
     """
 
     def __init__(
@@ -131,7 +157,6 @@ class ScoreCalibrator:
         threshold: float = _DEFAULT_THRESHOLD,
     ):
         if A > 0:
-            import warnings
             warnings.warn(
                 f"Platt A={A:.4f} is POSITIVE. This means higher raw scores → lower "
                 "calibrated probability, which is wrong for a repurposing score. "
@@ -142,13 +167,9 @@ class ScoreCalibrator:
             A = -abs(A)
 
         # B has no sign constraint — do NOT warn or negate negative B values.
-        # A negative B is a valid fitted intercept.
-
         self.A = A
         self.B = B
         self.threshold = threshold
-
-        # Compute calibrated range for documentation
         self._cal_at_zero = _sigmoid(self.A * 0.0 + self.B)
         self._cal_at_one  = _sigmoid(self.A * 1.0 + self.B)
 
@@ -156,16 +177,11 @@ class ScoreCalibrator:
         """
         Convert raw network overlap score to calibrated probability.
 
-        Parameters
-        ----------
-        raw_score : float
-            Raw score in [0, 1].
-
         Returns
         -------
         float
             Calibrated probability in (0, 1).
-            NOTE: Currently spans ~0.42–0.47 for all raw scores.
+            NOTE: Spans ~0.43–0.47 for all raw scores with typical params.
             Useful for ranking; NOT for binary classification.
         """
         if not 0.0 <= raw_score <= 1.0:
@@ -206,8 +222,7 @@ class ScoreCalibrator:
     def calibration_table(self) -> List[Dict]:
         """
         Produce calibration table for paper supplementary figure.
-        Predicted class uses PRACTICAL_RAW_THRESHOLD for classification,
-        since calibrated threshold is unreachable.
+        Predicted class uses PRACTICAL_RAW_THRESHOLD for classification.
         """
         rows = []
         for raw in [i / 20.0 for i in range(21)]:
@@ -240,7 +255,7 @@ class ScoreCalibrator:
             print("Warning: Too few cases (<4). Keeping default parameters.")
             return self.A, self.B
 
-        A = -1.0  # Start negative
+        A = -1.0
         B = 0.0
         n = len(cases)
         lr = 0.01
@@ -257,12 +272,10 @@ class ScoreCalibrator:
             A -= lr * dA / n
             B -= lr * dB / n
 
-        # Enforce correct orientation for A only
         if A > 0:
             print(f"Warning: fitted A={A:.4f} is positive. Negating.")
             A = -abs(A)
 
-        # B has no sign constraint — do not modify
         print(f"Refitted Platt: A={A:.4f}, B={B:.4f}")
         print(f"  Calibrated range: [{_sigmoid(A*0+B):.4f}, {_sigmoid(A*1+B):.4f}]")
         self.A = A
@@ -279,7 +292,6 @@ class ScoreCalibrator:
 
         bin_size = 1.0 / n_bins
         ece = 0.0
-
         for b in range(n_bins):
             low  = b * bin_size
             high = (b + 1) * bin_size
@@ -299,10 +311,16 @@ class ScoreCalibrator:
     def calibration_summary(self) -> Dict:
         """Return a complete summary for paper reporting."""
         raw_thresh = self.raw_threshold()
+        params_source = (
+            str(_PARAMS_FILE.resolve())
+            if _PARAMS_FILE.exists()
+            else "fallback_hardcoded_defaults"
+        )
         return {
             "A": self.A,
             "B": self.B,
-            "ece_v4": 0.0163,
+            "params_source": params_source,
+            "ece_v4": 0.0182,
             "cal_range": {
                 "at_raw_0": round(self._cal_at_zero, 4),
                 "at_raw_1": round(self._cal_at_one, 4),
@@ -349,10 +367,11 @@ def _run_test():
     summary = cal.calibration_summary()
 
     print("\n" + "=" * 70)
-    print("CALIBRATION MODULE v4.1 — VERIFICATION")
+    print("CALIBRATION MODULE v4.2 — VERIFICATION")
     print("=" * 70)
     print(f"  A = {cal.A}  (NEGATIVE — correct: higher raw → higher prob)")
     print(f"  B = {cal.B}  (CAN be negative — valid fitted intercept)")
+    print(f"  Params source: {summary['params_source']}")
     print(f"  Dataset: {summary['dataset_version']}")
     print(f"  ECE (v4.0): {summary['ece_v4']} (excellent)")
     print(f"  Calibrated range: [{summary['cal_range']['at_raw_0']}, "

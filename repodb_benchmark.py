@@ -21,10 +21,15 @@ FIXES vs previous version
 3. drugs_cache: Fetches approved drugs ONCE and reuses across all disease
    queries, matching the validation runner behaviour.
 
+4. Auto-fetch: fetch_repodb_if_missing() downloads the RepoDB CSV from the
+   GitHub mirror using only stdlib (urllib.request) if the file is not
+   already present on disk. The sys.exit(1) guard in main() is replaced
+   with a call to this function so the script is fully self-contained.
+
 RepoDB Reference
 ----------------
 Brown AS & Patel CJ (2017). "A standard database for drug repositioning."
-Pac Symp Biocomput, 22, 393–401. PMID:27896997.
+Pac Symp Biocomput, 22, 393-401. PMID:27896997.
 Dataset: https://unmtid-shinyapps.net/shiny/repodb/
 
 Metrics computed
@@ -46,20 +51,61 @@ import csv
 import json
 import logging
 import sys
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FIX 1: Import ProductionPipeline by canonical name.
-# RepurposingPipeline = ProductionPipeline alias exists in the module but
-# using the canonical class name is preferred.
-# ─────────────────────────────────────────────────────────────────────────────
 from backend.pipeline.production_pipeline import ProductionPipeline
 from backend.pipeline.calibration import calibrate_score
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+# Primary download URL (GitHub mirror of the RepoDB R package data)
+# Fallback is the official RepoDB Shiny app export endpoint.
+_REPODB_PRIMARY_URL  = "https://raw.githubusercontent.com/rhenanbartels/repoDB/master/data/repodb.csv"
+_REPODB_FALLBACK_URL = "https://unmtid-shinyapps.net/download/repodb_full.csv"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FIX 4: Auto-fetch RepoDB if the local file is missing
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_repodb_if_missing(path: str) -> None:
+    """
+    Download the RepoDB CSV from a public mirror if ``path`` does not exist.
+
+    Uses only stdlib (urllib.request) — no extra dependencies required.
+    Tries the GitHub mirror first; falls back to the official export URL if
+    the primary source returns a non-200 status or raises a network error.
+
+    Parameters
+    ----------
+    path : str
+        Local destination path for the CSV file.
+    """
+    if Path(path).exists():
+        logger.info(f"RepoDB file found at {path}, skipping download.")
+        return
+
+    for url in (_REPODB_PRIMARY_URL, _REPODB_FALLBACK_URL):
+        try:
+            logger.info(f"Downloading RepoDB CSV from {url} ...")
+            urllib.request.urlretrieve(url, path)
+            logger.info(f"RepoDB CSV saved to {path}")
+            return
+        except Exception as exc:
+            logger.warning(f"  Failed ({exc}), trying next URL...")
+
+    # Both URLs failed — remove any partial file and abort.
+    Path(path).unlink(missing_ok=True)
+    logger.error(
+        "Could not download RepoDB from any known URL.\n"
+        "Please download manually from https://unmtid-shinyapps.net/shiny/repodb/ "
+        f"and place the file at: {path}"
+    )
+    sys.exit(1)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -73,7 +119,8 @@ def load_repodb(path: str) -> Tuple[List[Dict], List[str]]:
     Returns
     -------
     (pairs, diseases) where:
-      pairs    = list of {drug, disease, label} dicts (label 1=approved, 0=withdrawn/investigational)
+      pairs    = list of {drug, disease, label} dicts
+                 (label 1 = approved, 0 = withdrawn / investigational)
       diseases = sorted list of unique disease names to benchmark
     """
     pairs = []
@@ -120,18 +167,13 @@ def _auc_roc(scores: List[float], labels: List[int]) -> float:
     if n_pos == 0 or n_neg == 0:
         return float("nan")
 
-    tp = 0.0
-    fp = 0.0
-    auc = 0.0
-    prev_tp = 0.0
-    prev_fp = 0.0
-
+    tp = fp = auc = prev_tp = prev_fp = 0.0
     for _, label in pairs:
         if label == 1:
             tp += 1
         else:
             fp += 1
-        auc += (fp - prev_fp) * (tp + prev_tp) / 2.0
+        auc    += (fp - prev_fp) * (tp + prev_tp) / 2.0
         prev_tp = tp
         prev_fp = fp
 
@@ -145,9 +187,7 @@ def _auc_pr(scores: List[float], labels: List[int]) -> float:
     if n_pos == 0:
         return float("nan")
 
-    tp = 0.0
-    fp = 0.0
-    auc = 0.0
+    tp = fp = auc = 0.0
     prev_recall = 0.0
     prev_prec   = 1.0
 
@@ -179,14 +219,17 @@ def _reciprocal_rank(rank: Optional[int]) -> float:
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def run_benchmark(
-    repodb_path: str,
-    top_n:       int  = 50,
-    output_path: str  = "repodb_benchmark_results.json",
+    repodb_path:  str,
+    top_n:        int           = 50,
+    output_path:  str           = "repodb_benchmark_results.json",
     max_diseases: Optional[int] = None,
 ) -> Dict:
     """
     Score every RepoDB disease against the full drug set and compute AUC/Hit/MRR.
     """
+    # FIX 4: Download RepoDB CSV automatically if it is not on disk.
+    fetch_repodb_if_missing(repodb_path)
+
     pairs, diseases = load_repodb(repodb_path)
     if max_diseases:
         diseases = diseases[:max_diseases]
@@ -194,7 +237,7 @@ async def run_benchmark(
 
     pipeline = ProductionPipeline()
 
-    # ─── FIX 3: Fetch drugs ONCE and reuse (matches validation runner) ────────
+    # FIX 3: Fetch drugs ONCE and reuse (matches validation runner)
     logger.info("Fetching approved drugs from ChEMBL (shared across all diseases)...")
     drugs_data = await pipeline.fetch_approved_drugs(limit=3000)
     logger.info(f"Using {len(drugs_data)} drugs\n")
@@ -213,8 +256,7 @@ async def run_benchmark(
             logger.warning(f"  Skipped — disease not found in OpenTargets")
             continue
 
-        # ─── FIX 2: Use generate_candidates() not analyze_disease() ──────────
-        # generate_candidates() is the extracted scoring method:
+        # FIX 2: Use generate_candidates() not analyze_disease()
         #   - Does NOT run PubMed lookups (fetch_pubmed=False, fast for bulk)
         #   - Does NOT filter by min_score (returns all drugs ranked)
         #   - Consistent with validation runner output
@@ -225,21 +267,15 @@ async def run_benchmark(
             fetch_pubmed=False,
         )
 
-        # Sort candidates by score descending
         candidates_sorted = sorted(candidates, key=lambda x: x["score"], reverse=True)
 
-        # Get RepoDB pairs for this disease
-        disease_pairs = [p for p in pairs if p["disease"] == disease_name]
+        disease_pairs  = [p for p in pairs if p["disease"] == disease_name]
         positive_drugs = {normalize_drug_name(p["drug"]) for p in disease_pairs if p["label"] == 1}
 
-        # Collect scores and labels for AUC computation
         disease_scores: List[float] = []
         disease_labels: List[int]   = []
-        disease_result_pairs        = []
 
         for rank, cand in enumerate(candidates_sorted, 1):
-            cand_norm = normalize_drug_name(cand["name"])
-            # Check if any RepoDB positive matches this candidate
             matched_positive = any(
                 match_drug_name(cand["name"], pos_drug)
                 for pos_drug in positive_drugs
@@ -247,7 +283,6 @@ async def run_benchmark(
             label = 1 if matched_positive else 0
             disease_scores.append(cand["score"])
             disease_labels.append(label)
-            disease_result_pairs.append({"name": cand["name"], "score": cand["score"], "rank": rank, "label": label})
 
         all_scores.extend(disease_scores)
         all_labels.extend(disease_labels)
@@ -266,11 +301,11 @@ async def run_benchmark(
         disease_pr  = _auc_pr(disease_scores, disease_labels)
 
         per_disease_results.append({
-            "disease":     disease_name,
-            "n_positives": len(positive_drugs),
-            "n_candidates":len(candidates),
-            "auc_roc":     round(disease_auc, 4) if disease_auc == disease_auc else None,
-            "auc_pr":      round(disease_pr, 4) if disease_pr == disease_pr else None,
+            "disease":      disease_name,
+            "n_positives":  len(positive_drugs),
+            "n_candidates": len(candidates),
+            "auc_roc":      round(disease_auc, 4) if disease_auc == disease_auc else None,
+            "auc_pr":       round(disease_pr,  4) if disease_pr  == disease_pr  else None,
         })
 
         logger.info(
@@ -280,7 +315,6 @@ async def run_benchmark(
 
     await pipeline.close()
 
-    # Global metrics
     global_auc_roc = _auc_roc(all_scores, all_labels)
     global_auc_pr  = _auc_pr(all_scores, all_labels)
     hit_at_n       = sum(hit_at_n_counts) / len(hit_at_n_counts) if hit_at_n_counts else 0.0
@@ -297,13 +331,13 @@ async def run_benchmark(
 
     output = {
         "summary": {
-            "n_diseases_tested":  len(per_disease_results),
-            "n_drugs":            len(drugs_data),
-            "top_n":              top_n,
-            "global_auc_roc":     round(global_auc_roc, 4),
-            "global_auc_pr":      round(global_auc_pr, 4),
+            "n_diseases_tested": len(per_disease_results),
+            "n_drugs":           len(drugs_data),
+            "top_n":             top_n,
+            "global_auc_roc":    round(global_auc_roc, 4),
+            "global_auc_pr":     round(global_auc_pr,  4),
             f"hit_at_{top_n}":   round(hit_at_n, 4),
-            "mrr":                round(mrr, 4),
+            "mrr":               round(mrr, 4),
         },
         "per_disease_results": per_disease_results,
     }
@@ -327,7 +361,7 @@ def main():
         "--repodb-file",
         type=str,
         default="repodb.csv",
-        help="Path to RepoDB CSV file (default: repodb.csv)",
+        help="Path to RepoDB CSV file (default: repodb.csv); downloaded automatically if missing.",
     )
     parser.add_argument(
         "--top-n",
@@ -349,10 +383,9 @@ def main():
     )
     args = parser.parse_args()
 
-    if not Path(args.repodb_file).exists():
-        logger.error(f"RepoDB file not found: {args.repodb_file}")
-        logger.error("Download from: https://unmtid-shinyapps.net/shiny/repodb/")
-        sys.exit(1)
+    # FIX 4: Removed the sys.exit(1) guard — fetch_repodb_if_missing() inside
+    # run_benchmark() handles the missing-file case and will exit cleanly only
+    # if all download URLs fail.
 
     try:
         asyncio.run(
