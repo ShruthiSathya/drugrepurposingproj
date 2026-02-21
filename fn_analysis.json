@@ -21,7 +21,7 @@
       "sources": [
         "PMID:28056917"
       ],
-      "notes": "KNOWN LIMITATION: Nusinersen is an antisense oligonucleotide (max_phase=3 in ChEMBL), not a small molecule max_phase=4. It is not in the approved drug pool and will always return drug_not_found. Case retained to document ASO coverage gap. expected_rank_top_n=0 disables rank check; case contributes to FN count."
+      "notes": "KNOWN LIMITATION: max_phase=3, not in ChEMBL approved pool. drug_not_found expected. Case documents ASO coverage gap."
     }
   ],
   "diagnostics": {

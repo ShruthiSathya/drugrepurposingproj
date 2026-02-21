@@ -1,19 +1,3 @@
-"""
-FIXED PRODUCTION PIPELINE ORCHESTRATOR v4
-==========================================
-Key fixes vs v3:
-1. Added generate_candidates() method — extracted from analyze_disease() so that
-   repodb_benchmark.py and run_validation.py can call it directly without running
-   the full pipeline. Required by RepoDBBenchmark and ValidationRunner.
-
-2. RepurposingPipeline alias added at module bottom — run_validation.py and
-   repodb_benchmark.py import RepurposingPipeline; both names now work.
-
-3. fetch_approved_drugs() exposed on pipeline object directly (delegates to
-   data_fetcher) so external callers do not need to reach into data_fetcher.
-
-4. drugs_cache exposed so RepoDB benchmark can reuse it across disease queries.
-"""
 
 import asyncio
 import aiohttp
@@ -24,6 +8,8 @@ from typing import Dict, List, Optional
 
 from .data_fetcher import ProductionDataFetcher
 from .graph_builder import ProductionGraphBuilder
+from .ppi_network import PPINetworkScorer, batch_ppi_scores
+from .drug_similarity import DrugSimilarityScorer, build_reference_smiles, batch_similarity_scores
 from .scorer import ProductionScorer
 
 logging.basicConfig(level=logging.INFO)
@@ -43,9 +29,12 @@ class ProductionPipeline:
         self.graph_builder = ProductionGraphBuilder()
         self.scorer:  Optional[ProductionScorer] = None
         self.disease_cache: Dict = {}
+        self._ppi_scorer = None
+        self._sim_scorer = None
         self.drugs_cache:   Optional[List[Dict]] = None
         self._pubmed_cache: Dict[str, float] = {}
         self._pubmed_session: Optional[aiohttp.ClientSession] = None
+        
 
     # ── PubMed helper ─────────────────────────────────────────────────────────
     async def _fetch_pubmed_score(self, drug_name: str, disease_name: str) -> float:
@@ -101,20 +90,26 @@ class ProductionPipeline:
         return self.drugs_cache
 
     # ── generate_candidates() — callable by benchmark/validation scripts ──────
+    import asyncio
+    import logging
+    from typing import Dict, List
+
+    logger = logging.getLogger(__name__)
+
+
     async def generate_candidates(
         self,
-        disease_data: Dict,
-        drugs_data: List[Dict],
-        min_score: float = 0.0,
-        fetch_pubmed: bool = False,
+        disease_data:  Dict,
+        drugs_data:    List[Dict],
+        min_score:     float = 0.0,
+        fetch_pubmed:  bool  = False,
+        fetch_ppi:     bool  = True,
+        fetch_similarity: bool = True,
     ) -> List[Dict]:
         """
         Score all drugs against a disease and return candidate dicts.
 
-        Extracted from analyze_disease() so that:
-          - repodb_benchmark.py can call it directly per disease
-          - run_validation.py can find individual drug scores
-          - The full pipeline can call it as part of analyze_disease()
+        v5: Now includes PPI network proximity and drug-drug chemical similarity.
 
         Parameters
         ----------
@@ -125,26 +120,41 @@ class ProductionPipeline:
         min_score : float
             Minimum composite score to include (default 0.0 = return all).
         fetch_pubmed : bool
-            If True, fetch live PubMed co-occurrence scores (slower but more
-            accurate). If False, literature_score=0 (fast, for bulk benchmarks).
+            If True, fetch live PubMed co-occurrence scores (slower).
+        fetch_ppi : bool
+            If True, fetch STRING PPI network proximity scores.
+            Requires internet access to string-db.org (cached after first run).
+            Set False to skip for faster runs (e.g. during development).
+        fetch_similarity : bool
+            If True, compute Tanimoto drug-drug chemical similarity.
+            Requires SMILES strings in drugs_data (already present from ChEMBL).
+            Fast — no API call needed.
 
         Returns
         -------
-        list of dict
-            Unsorted list of candidate dicts. Each dict contains:
-            name, drug_name, drug_id, score, confidence, shared_genes,
-            shared_pathways, explanation, indication, mechanism,
-            gene_score, pathway_score, mechanism_score, literature_score.
+        list of dict with keys:
+            name, drug_name, drug_id, score, confidence,
+            shared_genes, shared_pathways, explanation,
+            indication, mechanism,
+            gene_score, pathway_score, ppi_score, similarity_score,
+            mechanism_score, literature_score
         """
+        from .ppi_network import PPINetworkScorer, batch_ppi_scores
+        from .drug_similarity import DrugSimilarityScorer, build_reference_smiles, batch_similarity_scores
+        from .scorer import ProductionScorer
+
         graph  = self.graph_builder.build_graph(disease_data, drugs_data)
         scorer = ProductionScorer(graph)
 
-        # Optionally fetch PubMed scores
+        disease_name  = disease_data["name"]
+        disease_genes = disease_data.get("genes", [])
+
+        # ── PubMed scores ─────────────────────────────────────────────────────────
         pubmed_score_map: Dict[str, float] = {}
         if fetch_pubmed:
             drugs_with_targets = [d for d in drugs_data if d.get("targets")]
             pubmed_tasks = [
-                self._fetch_pubmed_score(d["name"], disease_data["name"])
+                self._fetch_pubmed_score(d["name"], disease_name)
                 for d in drugs_with_targets
             ]
             scores_list = await asyncio.gather(*pubmed_tasks, return_exceptions=True)
@@ -153,37 +163,89 @@ class ProductionPipeline:
                 for d, s in zip(drugs_with_targets, scores_list)
             }
 
+        # ── PPI network proximity ─────────────────────────────────────────────────
+        ppi_score_map: Dict[str, float] = {}
+        if fetch_ppi and disease_genes:
+            if self._ppi_scorer is None:
+                self._ppi_scorer = PPINetworkScorer()
+            try:
+                logger.info(f"🔗 Fetching STRING PPI scores for {disease_name}...")
+                ppi_results = await batch_ppi_scores(
+                    drugs_data=drugs_data,
+                    disease_genes=disease_genes,
+                    scorer=self._ppi_scorer,
+                )
+                ppi_score_map = {name: score for name, (score, _) in ppi_results.items()}
+                n_nonzero = sum(1 for s in ppi_score_map.values() if s > 0)
+                logger.info(f"✅ PPI scores: {n_nonzero}/{len(drugs_data)} drugs with network proximity")
+            except Exception as e:
+                logger.warning(f"PPI scoring failed (continuing without it): {e}")
+                ppi_score_map = {}
+        else:
+            if fetch_ppi and not disease_genes:
+                logger.warning("PPI skipped: no disease genes available")
+
+        # ── Drug-drug chemical similarity ─────────────────────────────────────────
+        sim_score_map: Dict[str, float] = {}
+        if fetch_similarity:
+            if self._sim_scorer is None:
+                self._sim_scorer = DrugSimilarityScorer()
+            try:
+                ref_smiles, ref_names = build_reference_smiles(disease_name, drugs_data)
+                if ref_smiles:
+                    logger.info(f"🧪 Computing drug similarity vs {len(ref_smiles)} known {disease_name} drugs...")
+                    sim_results = batch_similarity_scores(
+                        drugs_data=drugs_data,
+                        reference_smiles=ref_smiles,
+                        reference_names=ref_names,
+                        scorer=self._sim_scorer,
+                    )
+                    sim_score_map = {name: score for name, (score, _) in sim_results.items()}
+                    n_hits = sum(1 for s in sim_score_map.values() if s > 0)
+                    logger.info(f"✅ Similarity scores: {n_hits}/{len(drugs_data)} drugs above threshold")
+                else:
+                    logger.info(f"Drug similarity skipped: no reference drugs found for '{disease_name}'")
+            except Exception as e:
+                logger.warning(f"Drug similarity scoring failed (continuing without it): {e}")
+                sim_score_map = {}
+
+        # ── Score all drugs ───────────────────────────────────────────────────────
         candidates = []
         for drug in drugs_data:
-            lit_score = pubmed_score_map.get(drug["name"], 0.0)
+            drug_name    = drug["name"]
+            lit_score    = pubmed_score_map.get(drug_name, 0.0)
+            ppi_score    = ppi_score_map.get(drug_name, 0.0)
+            sim_score    = sim_score_map.get(drug_name, 0.0)
+
             score, evidence = scorer.score_drug_disease_match(
-                drug["name"],
-                disease_data["name"],
+                drug_name,
+                disease_name,
                 disease_data,
                 drug,
                 external_literature_score=lit_score,
+                ppi_score=ppi_score,
+                similarity_score=sim_score,
             )
 
             if score >= min_score:
-                candidates.append(
-                    {
-                        # 'name' key for backward-compat with repodb_benchmark match_drug_name
-                        "name":            drug["name"],
-                        "drug_name":       drug["name"],
-                        "drug_id":         drug.get("id", ""),
-                        "score":           score,
-                        "confidence":      evidence["confidence"],
-                        "shared_genes":    evidence["shared_genes"],
-                        "shared_pathways": evidence["shared_pathways"],
-                        "explanation":     evidence["explanation"],
-                        "indication":      drug.get("indication", ""),
-                        "mechanism":       drug.get("mechanism", ""),
-                        "gene_score":      evidence["gene_score"],
-                        "pathway_score":   evidence["pathway_score"],
-                        "mechanism_score": evidence["mechanism_score"],
-                        "literature_score":evidence["literature_score"],
-                    }
-                )
+                candidates.append({
+                    "name":             drug_name,
+                    "drug_name":        drug_name,
+                    "drug_id":          drug.get("id", ""),
+                    "score":            score,
+                    "confidence":       evidence["confidence"],
+                    "shared_genes":     evidence["shared_genes"],
+                    "shared_pathways":  evidence["shared_pathways"],
+                    "explanation":      evidence["explanation"],
+                    "indication":       drug.get("indication", ""),
+                    "mechanism":        drug.get("mechanism", ""),
+                    "gene_score":       evidence["gene_score"],
+                    "pathway_score":    evidence["pathway_score"],
+                    "ppi_score":        evidence["ppi_score"],
+                    "similarity_score": evidence["similarity_score"],
+                    "mechanism_score":  evidence["mechanism_score"],
+                    "literature_score": evidence["literature_score"],
+                })
 
         return candidates
 
@@ -344,6 +406,8 @@ class ProductionPipeline:
         await self.data_fetcher.close()
         if self._pubmed_session and not self._pubmed_session.closed:
             await self._pubmed_session.close()
+        if self._ppi_scorer:
+            await self._ppi_scorer.close()
         logger.info("🔒 Pipeline closed")
 
 

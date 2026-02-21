@@ -24,6 +24,7 @@ sqlalchemy==2.0.23
 # Scientific Computing
 numpy==1.26.4
 scipy>=1.14.1
+rdkit
 
 # Anthropic API (for AI explanations)
 anthropic==0.40.0

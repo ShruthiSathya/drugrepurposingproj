@@ -1,27 +1,23 @@
 #!/usr/bin/env bash
 # =============================================================================
-# validate_all.sh — Full Validation Pipeline
+# validate_all.sh — Full Validation Pipeline v2
 # =============================================================================
-# Runs all four validation steps in sequence, checking exit codes between
-# steps. If any step fails, the pipeline halts with a non-zero exit code.
+# Runs all five validation steps in sequence.
 #
-# Steps:
-#   1. Curated validation (run_validation.py)              → validation_results.json
-#   2. Calibration analysis (score_calibration.py)         → calibration_results.json
-#   3. RepoDB benchmark (repodb_benchmark.py)              → repodb_benchmark_results.json
-#   4. False negative analysis (false_negative_analysis.py)→ fn_analysis.json
+# FIXES vs v1
+# -----------
+# FIX 1: n_test_cases comment corrected to n=55 (v4.0 dataset).
 #
-# FIXES vs previous version
-# -------------------------
-# FIX 1: n_test_cases comment corrected to n=33 (was n=34).
-#        Tocilizumab/CRS moved to OUT_OF_SCOPE in validation_dataset.py v3.
+# FIX 2: Platt B sign check REMOVED / CORRECTED.
+#   Previously the script flagged negative B as a CRITICAL ERROR. This was
+#   wrong. B is the intercept and has no sign constraint — a negative B is
+#   a valid fitted value. The check is now removed entirely.
+#   The CORRECT check is that A must be NEGATIVE (higher raw score →
+#   higher calibrated probability). Only A is checked.
 #
-# FIX 2: Metrics extraction uses .metrics.sensitivity (correct nested path).
-#        Old version used top-level .sensitivity which does not exist.
+# FIX 3: Metrics extraction uses .metrics.sensitivity (correct nested path).
 #
-# FIX 3: Platt B sanity check now uses python3 for numeric comparison.
-#        Old version used `bc` which may not be installed and silently
-#        returned 0 (always passing the check even with negative B).
+# FIX 4: Step 5 (statistical_tests.py) added for bootstrap CIs.
 #
 # Usage:
 #   chmod +x validate_all.sh
@@ -32,7 +28,6 @@
 
 set -euo pipefail
 
-# ─── Colour helpers ───────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -49,7 +44,6 @@ log_section() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
-# ─── Argument parsing ─────────────────────────────────────────────────────────
 REPODB_FILE="repodb.csv"
 SKIP_REPODB=0
 
@@ -71,85 +65,120 @@ log_ok "python3 found: $(python3 --version 2>&1)"
 
 if ! command -v jq &>/dev/null; then
     log_warn "jq not found — metrics extraction at end will be skipped."
-    log_warn "Install: apt install jq   OR   brew install jq"
     HAS_JQ=0
 else
     log_ok "jq found: $(jq --version)"
     HAS_JQ=1
 fi
 
-for script in run_validation.py score_calibration.py false_negative_analysis.py; do
+for script in run_validation.py score_calibration.py false_negative_analysis.py statistical_tests.py; do
     if [[ ! -f "$script" ]]; then
-        log_error "Missing required script: $script"
-        log_error "Run this script from the repo root directory."
-        exit 1
+        log_warn "Missing script: $script — step will be skipped."
     fi
 done
-log_ok "All required scripts present"
+log_ok "Script check complete"
 
-if [[ $SKIP_REPODB -eq 0 ]] && [[ ! -f repodb_benchmark.py ]]; then
-    log_warn "repodb_benchmark.py not found — RepoDB step will be skipped."
-    SKIP_REPODB=1
-fi
-
-echo ""
 START_TIME=$(date +%s)
 
 # =============================================================================
-# STEP 1: Curated Validation (n=33)
+# STEP 1: Curated Validation (n=55, v4.0 dataset)
 # =============================================================================
-# FIX 1: n=33, not n=34. Tocilizumab/CRS removed in validation_dataset.py v3.
-# =============================================================================
-log_section "STEP 1/4: Curated Validation (n=33 test cases)"
+log_section "STEP 1/5: Curated Validation (n=55 test cases, v4.0)"
 
 python3 run_validation.py --output validation_results.json
 
 if [[ ! -f validation_results.json ]]; then
-    log_error "Step 1 FAILED — validation_results.json was not created."
+    log_error "Step 1 FAILED — validation_results.json not created."
     exit 1
 fi
 log_ok "Step 1 complete — validation_results.json written"
 
-# Quick sanity: confirm n_test_cases matches expected value
 if [[ $HAS_JQ -eq 1 ]]; then
     N_CASES=$(jq -r '.header.n_test_cases // "unknown"' validation_results.json)
-    if [[ "$N_CASES" == "33" ]]; then
+    if [[ "$N_CASES" == "55" ]]; then
         log_ok "  n_test_cases = $N_CASES ✓"
-    elif [[ "$N_CASES" == "unknown" ]]; then
-        log_warn "  n_test_cases not found in .header — check run_validation.py output format"
     else
-        log_warn "  n_test_cases = $N_CASES (expected 33 — check validation_dataset.py)"
+        log_warn "  n_test_cases = $N_CASES (expected 55 — check validation_dataset.py)"
     fi
 fi
 
 # =============================================================================
 # STEP 2: Score Calibration Analysis
 # =============================================================================
-log_section "STEP 2/4: Score Calibration Analysis"
+log_section "STEP 2/5: Score Calibration Analysis"
 
 python3 score_calibration.py \
     --input  validation_results.json \
     --output calibration_results.json
 
 if [[ ! -f calibration_results.json ]]; then
-    log_error "Step 2 FAILED — calibration_results.json was not created."
+    log_error "Step 2 FAILED — calibration_results.json not created."
     exit 1
 fi
 log_ok "Step 2 complete — calibration_results.json written"
 
+# ─── FIX 2: Check A is NEGATIVE (not B) ──────────────────────────────────────
+# B has no sign constraint. A must be negative for correct orientation.
+# Checking B sign was a bug in v1 — removed entirely.
+if [[ $HAS_JQ -eq 1 ]]; then
+    PLATT_A_RAW=$(jq -r '.platt_parameters.A' calibration_results.json 2>/dev/null || echo "0")
+    PLATT_B_RAW=$(jq -r '.platt_parameters.B' calibration_results.json 2>/dev/null || echo "0")
+    ECE=$(jq -r '.ece // "N/A"' calibration_results.json)
+
+    A_IS_NEGATIVE=$(python3 -c "
+try:
+    a = float('$PLATT_A_RAW')
+    print('yes' if a < 0 else 'no')
+except:
+    print('unknown')
+" 2>/dev/null || echo "unknown")
+
+    if [[ "$A_IS_NEGATIVE" == "yes" ]]; then
+        log_ok "  Platt A = $PLATT_A_RAW (negative — correct orientation) ✓"
+    elif [[ "$A_IS_NEGATIVE" == "no" ]]; then
+        log_error "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_error "  CRITICAL: Platt A = $PLATT_A_RAW (POSITIVE — BUG)"
+        log_error "  A must be negative: higher raw score → higher calibrated prob."
+        log_error "  Fix: backend/pipeline/calibration.py — ensure _PLATT_A < 0"
+        log_error "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    else
+        log_warn "  Could not parse Platt A value: '$PLATT_A_RAW'"
+    fi
+
+    # B: just report the value — no pass/fail check (B has no sign constraint)
+    log_info "  Platt B = $PLATT_B_RAW (intercept — sign is unconstrained)"
+    log_info "  ECE     = $ECE"
+
+    # Warn if calibrated threshold is unreachable
+    THRESH_RAW=$(jq -r '.classification_threshold.raw_equivalent_50 // "N/A"' calibration_results.json)
+    if [[ "$THRESH_RAW" != "N/A" ]]; then
+        THRESH_OK=$(python3 -c "
+try:
+    t = float('$THRESH_RAW')
+    print('yes' if t <= 1.0 else 'no')
+except:
+    print('unknown')
+" 2>/dev/null || echo "unknown")
+        if [[ "$THRESH_OK" == "no" ]]; then
+            log_warn "  Calibrated threshold raw equivalent = $THRESH_RAW (> 1.0 — UNREACHABLE)"
+            log_warn "  Use raw_score >= 0.20 for binary classification."
+        else
+            log_ok "  Calibrated threshold raw equivalent = $THRESH_RAW ✓"
+        fi
+    fi
+fi
+
 # =============================================================================
 # STEP 3: RepoDB Benchmark (optional)
 # =============================================================================
-log_section "STEP 3/4: RepoDB Benchmark"
+log_section "STEP 3/5: RepoDB Benchmark"
 
 if [[ $SKIP_REPODB -eq 1 ]]; then
     log_warn "RepoDB benchmark SKIPPED."
-    log_warn "To run: ./validate_all.sh --repodb-file path/to/repodb.csv"
-    log_warn "Download RepoDB: https://unmtid-shinyapps.net/shiny/repodb/"
-elif [[ ! -f "$REPODB_FILE" ]]; then
-    log_warn "RepoDB file not found: $REPODB_FILE"
     log_warn "Download: https://unmtid-shinyapps.net/shiny/repodb/"
-    log_warn "Skipping RepoDB step."
+    log_warn "Run with: ./validate_all.sh --repodb-file path/to/repodb.csv"
+elif [[ ! -f "$REPODB_FILE" ]]; then
+    log_warn "RepoDB file not found: $REPODB_FILE — skipping."
     SKIP_REPODB=1
 else
     python3 repodb_benchmark.py \
@@ -158,7 +187,7 @@ else
         --output repodb_benchmark_results.json
 
     if [[ ! -f repodb_benchmark_results.json ]]; then
-        log_error "Step 3 FAILED — repodb_benchmark_results.json was not created."
+        log_error "Step 3 FAILED."
         exit 1
     fi
     log_ok "Step 3 complete — repodb_benchmark_results.json written"
@@ -167,17 +196,39 @@ fi
 # =============================================================================
 # STEP 4: False Negative Analysis
 # =============================================================================
-log_section "STEP 4/4: False Negative Analysis"
+log_section "STEP 4/5: False Negative Analysis"
 
 python3 false_negative_analysis.py \
     --input  validation_results.json \
     --output fn_analysis.json
 
 if [[ ! -f fn_analysis.json ]]; then
-    log_error "Step 4 FAILED — fn_analysis.json was not created."
+    log_error "Step 4 FAILED."
     exit 1
 fi
 log_ok "Step 4 complete — fn_analysis.json written"
+
+# =============================================================================
+# STEP 5: Statistical Tests (NEW — bootstrap CIs, McNemar, DeLong)
+# =============================================================================
+log_section "STEP 5/5: Statistical Tests (Bootstrap CI, McNemar, DeLong)"
+
+if [[ ! -f statistical_tests.py ]]; then
+    log_warn "statistical_tests.py not found — skipping."
+    log_warn "Copy statistical_tests.py to this directory to enable."
+else
+    python3 statistical_tests.py \
+        --input  validation_results.json \
+        --output statistical_results.json \
+        --n-bootstrap 1000 \
+        --seed 42
+
+    if [[ ! -f statistical_results.json ]]; then
+        log_error "Step 5 FAILED."
+        exit 1
+    fi
+    log_ok "Step 5 complete — statistical_results.json written"
+fi
 
 # =============================================================================
 # SUMMARY
@@ -198,26 +249,25 @@ else
     echo "    – repodb_benchmark_results.json  (skipped)"
 fi
 echo "    ✓ fn_analysis.json"
+if [[ -f statistical_results.json ]]; then
+    echo "    ✓ statistical_results.json"
+fi
 echo ""
 
-# =============================================================================
-# METRICS EXTRACTION
-# =============================================================================
 if [[ $HAS_JQ -eq 0 ]]; then
-    log_warn "jq not available — install it to see automatic metric display."
-    echo ""
-    log_ok "All validation steps completed successfully."
+    log_ok "All validation steps completed. Install jq for metric display."
     exit 0
 fi
 
+# =============================================================================
+# METRICS DISPLAY
+# =============================================================================
 log_section "KEY METRICS SUMMARY"
 
-# ── Curated validation metrics ────────────────────────────────────────────────
-# FIX 2: metrics live under .metrics.* not at top level
 echo ""
-echo "  ┌─────────────────────────────────────────────────┐"
-echo "  │  CURATED VALIDATION  (validation_results.json)  │"
-echo "  └─────────────────────────────────────────────────┘"
+echo "  ┌─────────────────────────────────────────────────────┐"
+echo "  │  CURATED VALIDATION  (validation_results.json)      │"
+echo "  └─────────────────────────────────────────────────────┘"
 
 SENSITIVITY=$(jq -r '.metrics.sensitivity // "N/A"' validation_results.json)
 SPECIFICITY=$(jq -r '.metrics.specificity // "N/A"' validation_results.json)
@@ -230,14 +280,13 @@ FP=$(jq          -r '.metrics.fp          // "N/A"' validation_results.json)
 N_POS=$(jq       -r '.header.n_positive_cases // "N/A"' validation_results.json)
 N_NEG=$(jq       -r '.header.n_negative_cases // "N/A"' validation_results.json)
 
-echo "    Sensitivity (recall) : $SENSITIVITY   (TP=$TP / n_pos=$N_POS)"
-echo "    Specificity          : $SPECIFICITY   (TN=$TN / n_neg=$N_NEG)"
-echo "    Precision            : $PRECISION"
-echo "    F1                   : $F1"
-echo "    False positives      : $FP"
-echo "    False negatives      : $FN"
+echo "    Sensitivity  : $SENSITIVITY   (TP=$TP / n_pos=$N_POS)"
+echo "    Specificity  : $SPECIFICITY   (TN=$TN / n_neg=$N_NEG)"
+echo "    Precision    : $PRECISION"
+echo "    F1           : $F1"
+echo "    FP           : $FP"
+echo "    FN           : $FN"
 
-# Threshold check — warn if sensitivity below publication target
 SENS_OK=$(python3 -c "
 try:
     s = float('$SENSITIVITY')
@@ -245,122 +294,67 @@ try:
 except:
     print('unknown')
 " 2>/dev/null || echo "unknown")
+
 if [[ "$SENS_OK" == "yes" ]]; then
     log_ok "  Sensitivity $SENSITIVITY >= 0.65 publication threshold ✓"
 elif [[ "$SENS_OK" == "no" ]]; then
     log_warn "  Sensitivity $SENSITIVITY < 0.65 — below publication threshold"
-    log_warn "  Run: python3 apply_patch.py   then re-run validation"
 fi
 
-# ── Calibration metrics ───────────────────────────────────────────────────────
-echo ""
-echo "  ┌─────────────────────────────────────────────────┐"
-echo "  │  CALIBRATION         (calibration_results.json) │"
-echo "  └─────────────────────────────────────────────────┘"
-
-PLATT_A=$(jq  -r '.platt_parameters.A          // "N/A"' calibration_results.json)
-PLATT_B=$(jq  -r '.platt_parameters.B          // "N/A"' calibration_results.json)
-ECE=$(jq      -r '.ece                          // "N/A"' calibration_results.json)
-D_TP_FN=$(jq  -r '.effect_sizes.cohens_d_tp_vs_fn // "N/A"' calibration_results.json)
-D_TP_FP=$(jq  -r '.effect_sizes.cohens_d_tp_vs_fp // "N/A"' calibration_results.json)
-RAW_THRESH=$(jq -r '.classification_threshold.raw_equivalent // "N/A"' calibration_results.json)
-
-echo "    Platt A              : $PLATT_A"
-echo "    Platt B              : $PLATT_B"
-echo "    Raw score threshold  : $RAW_THRESH  (calibrated = 0.40)"
-echo "    ECE                  : $ECE   (target < 0.15)"
-echo "    Cohen's d (TP vs FN) : $D_TP_FN"
-echo "    Cohen's d (TP vs FP) : $D_TP_FP"
-
-# FIX 3: Use python3 for numeric comparison — bc may not be installed and
-# silently returns exit code 0 (wrong), causing the check to always pass.
-PLATT_B_RAW=$(jq -r '.platt_parameters.B' calibration_results.json 2>/dev/null || echo "0")
-
-IS_NEGATIVE=$(python3 - <<PYEOF 2>/dev/null
-try:
-    b = float("$PLATT_B_RAW")
-    print("yes" if b < 0 else "no")
-except Exception:
-    print("unknown")
-PYEOF
-)
-
-if [[ "$IS_NEGATIVE" == "yes" ]]; then
+# Bootstrap CIs
+if [[ -f statistical_results.json ]]; then
     echo ""
-    log_error "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_error "  CRITICAL: Platt B = $PLATT_B_RAW  (NEGATIVE — BUG NOT FIXED)"
-    log_error "  Open: backend/pipeline/calibration.py"
-    log_error "  Find:    _PLATT_B: float = -0.42"
-    log_error "  Change:  _PLATT_B: float = +0.42"
-    log_error "  Then re-run: ./validate_all.sh"
-    log_error "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-elif [[ "$IS_NEGATIVE" == "no" ]]; then
-    log_ok "  Platt B = +$PLATT_B_RAW (positive — correct) ✓"
-else
-    log_warn "  Could not parse Platt B value: '$PLATT_B_RAW'"
+    echo "  ┌──────────────────────────────────────────────────────┐"
+    echo "  │  BOOTSTRAP 95% CI  (statistical_results.json)        │"
+    echo "  └──────────────────────────────────────────────────────┘"
+    SENS_LO=$(jq -r '.bootstrap_ci.sensitivity.ci_lower // "N/A"' statistical_results.json)
+    SENS_HI=$(jq -r '.bootstrap_ci.sensitivity.ci_upper // "N/A"' statistical_results.json)
+    SPEC_LO=$(jq -r '.bootstrap_ci.specificity.ci_lower // "N/A"' statistical_results.json)
+    SPEC_HI=$(jq -r '.bootstrap_ci.specificity.ci_upper // "N/A"' statistical_results.json)
+    PREC_LO=$(jq -r '.bootstrap_ci.precision.ci_lower   // "N/A"' statistical_results.json)
+    PREC_HI=$(jq -r '.bootstrap_ci.precision.ci_upper   // "N/A"' statistical_results.json)
+    F1_LO=$(jq   -r '.bootstrap_ci.f1.ci_lower          // "N/A"' statistical_results.json)
+    F1_HI=$(jq   -r '.bootstrap_ci.f1.ci_upper          // "N/A"' statistical_results.json)
+    echo "    Sensitivity  : $SENSITIVITY  [95% CI: $SENS_LO – $SENS_HI]"
+    echo "    Specificity  : $SPECIFICITY  [95% CI: $SPEC_LO – $SPEC_HI]"
+    echo "    Precision    : $PRECISION  [95% CI: $PREC_LO – $PREC_HI]"
+    echo "    F1           : $F1  [95% CI: $F1_LO – $F1_HI]"
 fi
 
-# ECE check
-ECE_OK=$(python3 -c "
-try:
-    e = float('$ECE')
-    print('yes' if e < 0.15 else 'no')
-except:
-    print('unknown')
-" 2>/dev/null || echo "unknown")
-if [[ "$ECE_OK" == "yes" ]]; then
-    log_ok "  ECE $ECE < 0.15 ✓"
-elif [[ "$ECE_OK" == "no" ]]; then
-    log_warn "  ECE $ECE >= 0.15 — calibration may need refit"
-fi
+# Calibration
+echo ""
+echo "  ┌──────────────────────────────────────────────────────┐"
+echo "  │  CALIBRATION  (calibration_results.json)             │"
+echo "  └──────────────────────────────────────────────────────┘"
+echo "    Platt A   : $PLATT_A_RAW  (must be negative)"
+echo "    Platt B   : $PLATT_B_RAW  (no sign constraint)"
+echo "    ECE       : $ECE"
 
-# ── RepoDB metrics ────────────────────────────────────────────────────────────
+# RepoDB
 if [[ $SKIP_REPODB -eq 0 ]] && [[ -f repodb_benchmark_results.json ]]; then
     echo ""
-    echo "  ┌─────────────────────────────────────────────────────────────┐"
-    echo "  │  REPODB BENCHMARK    (repodb_benchmark_results.json)        │"
-    echo "  └─────────────────────────────────────────────────────────────┘"
-
-    AUC_ROC=$(jq -r '.summary.global_auc_roc  // "N/A"' repodb_benchmark_results.json)
-    AUC_PR=$(jq  -r '.summary.global_auc_pr   // "N/A"' repodb_benchmark_results.json)
-    HIT50=$(jq   -r '.summary."hit_at_50"     // "N/A"' repodb_benchmark_results.json)
-    MRR=$(jq     -r '.summary.mrr             // "N/A"' repodb_benchmark_results.json)
-    N_DIS=$(jq   -r '.summary.n_diseases_tested // "N/A"' repodb_benchmark_results.json)
-    N_DRUGS=$(jq -r '.summary.n_drugs         // "N/A"' repodb_benchmark_results.json)
-
-    echo "    Diseases tested      : $N_DIS"
-    echo "    Drugs in pool        : $N_DRUGS"
-    echo "    Global AUC-ROC       : $AUC_ROC"
-    echo "    Global AUC-PR        : $AUC_PR"
-    echo "    Hit@50               : $HIT50"
-    echo "    MRR                  : $MRR"
+    echo "  ┌──────────────────────────────────────────────────────┐"
+    echo "  │  REPODB BENCHMARK  (repodb_benchmark_results.json)   │"
+    echo "  └──────────────────────────────────────────────────────┘"
+    AUC_ROC=$(jq -r '.summary.global_auc_roc // "N/A"' repodb_benchmark_results.json)
+    AUC_PR=$(jq  -r '.summary.global_auc_pr  // "N/A"' repodb_benchmark_results.json)
+    HIT50=$(jq   -r '.summary."hit_at_50"    // "N/A"' repodb_benchmark_results.json)
+    MRR=$(jq     -r '.summary.mrr            // "N/A"' repodb_benchmark_results.json)
+    echo "    AUC-ROC   : $AUC_ROC"
+    echo "    AUC-PR    : $AUC_PR"
+    echo "    Hit@50    : $HIT50"
+    echo "    MRR       : $MRR"
 fi
 
-# ── False negative analysis ───────────────────────────────────────────────────
-echo ""
-echo "  ┌─────────────────────────────────────────────────┐"
-echo "  │  FALSE NEGATIVE ANALYSIS  (fn_analysis.json)    │"
-echo "  └─────────────────────────────────────────────────┘"
-
-FN_RATE=$(jq -r '.summary.fn_rate_percent    // "N/A"' fn_analysis.json)
-FN_N=$(jq    -r '.summary.n_false_negatives  // "N/A"' fn_analysis.json)
-FN_POS=$(jq  -r '.summary.n_positive_cases   // "N/A"' fn_analysis.json)
-CATS=$(jq    -r '.summary.category_breakdown // {} | to_entries[] | "      \(.key): \(.value)"' fn_analysis.json 2>/dev/null || echo "      (could not parse)")
-
-echo "    False negatives      : $FN_N / $FN_POS"
-echo "    FN rate              : ${FN_RATE}%"
-echo "    Breakdown by category:"
-echo "$CATS"
-
-# ── Final pass/fail summary ───────────────────────────────────────────────────
-echo ""
+# =============================================================================
+# PASS / FAIL CHECKLIST
+# =============================================================================
 log_section "PASS / FAIL CHECKLIST"
 echo ""
 
-# Helper: print pass or fail line
 check() {
     local label="$1"
-    local result="$2"   # "pass" or "fail" or "warn" or "skip"
+    local result="$2"
     local detail="$3"
     case "$result" in
         pass) echo -e "  ${GREEN}[PASS]${NC} $label — $detail" ;;
@@ -402,17 +396,31 @@ PREC_RESULT="fail"
 [[ "$PREC_OK" == "unknown" ]] && PREC_RESULT="warn"
 check "Precision ≥ 65%" "$PREC_RESULT" "$PRECISION"
 
-# Platt B positive
-PLATT_B_RESULT="fail"
-[[ "$IS_NEGATIVE" == "no" ]] && PLATT_B_RESULT="pass"
-[[ "$IS_NEGATIVE" == "unknown" ]] && PLATT_B_RESULT="warn"
-check "Platt B is positive" "$PLATT_B_RESULT" "B = $PLATT_B_RAW"
+# Platt A is negative (CORRECT CHECK — not B)
+A_RESULT="fail"
+[[ "$A_IS_NEGATIVE" == "yes" ]] && A_RESULT="pass"
+[[ "$A_IS_NEGATIVE" == "unknown" ]] && A_RESULT="warn"
+check "Platt A is negative (correct orientation)" "$A_RESULT" "A = $PLATT_A_RAW"
 
 # ECE < 0.15
+ECE_OK=$(python3 -c "
+try:
+    e = float('$ECE')
+    print('yes' if e < 0.15 else 'no')
+except:
+    print('unknown')
+" 2>/dev/null || echo "unknown")
 ECE_RESULT="fail"
 [[ "$ECE_OK" == "yes" ]] && ECE_RESULT="pass"
 [[ "$ECE_OK" == "unknown" ]] && ECE_RESULT="warn"
 check "ECE < 0.15" "$ECE_RESULT" "$ECE"
+
+# Statistical tests run
+if [[ -f statistical_results.json ]]; then
+    check "Bootstrap CI computed" "pass" "statistical_results.json present"
+else
+    check "Bootstrap CI computed" "skip" "statistical_tests.py not found"
+fi
 
 # RepoDB run
 if [[ $SKIP_REPODB -eq 0 ]] && [[ -f repodb_benchmark_results.json ]]; then
@@ -422,22 +430,5 @@ else
 fi
 
 echo ""
-
-# ── Next steps if any failures ────────────────────────────────────────────────
-if [[ "$SENS_RESULT" == "fail" ]] || [[ "$PLATT_B_RESULT" == "fail" ]]; then
-    echo "  ─────────────────────────────────────────────────────────"
-    echo "  RECOMMENDED NEXT STEPS:"
-    if [[ "$PLATT_B_RESULT" == "fail" ]]; then
-        echo "  1. Fix Platt B in backend/pipeline/calibration.py (change -0.42 → +0.42)"
-    fi
-    if [[ "$SENS_RESULT" == "fail" ]]; then
-        echo "  2. Run: python3 apply_patch.py  (adds missing drug targets)"
-        echo "     Then: rm -f /tmp/drug_repurposing_cache/chembl_approved_drugs.json"
-        echo "     Then: ./validate_all.sh"
-    fi
-    echo "  ─────────────────────────────────────────────────────────"
-    echo ""
-fi
-
 log_ok "Validation pipeline finished. $(date)"
 echo ""
