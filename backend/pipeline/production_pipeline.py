@@ -251,156 +251,167 @@ class ProductionPipeline:
 
     # ── Main entry point ──────────────────────────────────────────────────────
     async def analyze_disease(
-        self,
-        disease_name: str,
-        min_score:    float = 0.2,
-        max_results:  int   = 20,
-    ) -> Dict:
-        start_time = time.time()
+    pipeline,           # your ProductionPipeline instance
+    disease_name: str,
+    top_n_for_trial: int = 10,  # how many candidates to run virtual trials on
+) -> Dict:
+    """
+    Enhanced pipeline analysis with all 4 new modules integrated.
 
-        logger.info("=" * 70)
-        logger.info(f"🔬 STARTING ANALYSIS: {disease_name}")
-        logger.info("=" * 70)
+    Parameters
+    ----------
+    pipeline : ProductionPipeline
+        Your existing pipeline instance.
+    disease_name : str
+        Disease name, e.g. "pancreatic ductal adenocarcinoma"
+    top_n_for_trial : int
+        Number of top candidates to pass to in-silico trial simulator.
 
-        # STEP 1: Disease data
-        logger.info("\n📊 Step 1/5: Fetching disease data from OpenTargets...")
-        disease_data = await self.data_fetcher.fetch_disease_data(disease_name)
+    Returns
+    -------
+    dict with all results including virtual trial outcomes.
+    """
 
-        if not disease_data:
-            logger.error(f"❌ Disease not found: {disease_name}")
-            return {
-                "success":    False,
-                "error":      f"Disease '{disease_name}' not found in OpenTargets database",
-                "suggestion": (
-                    "Try the full canonical name, e.g. 'Parkinson disease' "
-                    "or 'pulmonary arterial hypertension'"
-                ),
-            }
+    # ── STEP 1: Fetch disease data (existing) ──────────────────────────────
+    logger.info(f"[1/9] Fetching disease data: {disease_name}")
+    disease_data = await pipeline.data_fetcher.fetch_disease_data(disease_name)
 
-        logger.info(f"✅ Found: {disease_data['name']}")
-        logger.info(f"   Genes:       {len(disease_data['genes'])}")
-        logger.info(f"   Pathways:    {len(disease_data['pathways'])}")
-        logger.info(f"   Rare disease:{disease_data.get('is_rare', False)}")
+    if not disease_data:
+        return {"error": f"Disease not found: {disease_name}"}
 
-        # STEP 2: Approved drugs
-        logger.info("\n💊 Step 2/5: Fetching approved drugs from ChEMBL...")
-        drugs_data = await self.fetch_approved_drugs(limit=3000)
-
-        # STEP 3: Build graph
-        logger.info("\n🕸️  Step 3/5: Building knowledge graph...")
-        graph       = self.graph_builder.build_graph(disease_data, drugs_data)
-        graph_stats = self.graph_builder.get_graph_stats()
+    # ── STEP 2: EFO Ontology Expansion (NEW: Module 1) ────────────────────
+    logger.info(f"[2/9] EFO ontology expansion...")
+    try:
+        from efo_ontology import EFOOntologyExpander
+        expander = EFOOntologyExpander(session=pipeline.data_fetcher.session)
+        disease_data = await expander.expand_disease_genes(disease_data)
+        stats = disease_data.get("efo_expansion_stats", {})
         logger.info(
-            f"✅ Graph built: {graph_stats['total_nodes']} nodes, "
-            f"{graph_stats['total_edges']} edges"
+            f"     EFO: {stats.get('original_gene_count')} → "
+            f"{stats.get('total_gene_count')} genes "
+            f"(+{stats.get('new_genes_added')} from ontology tree)"
         )
+    except Exception as e:
+        logger.warning(f"     EFO expansion failed (non-fatal): {e}")
+    finally:
+        try:
+            await expander.close()
+        except Exception:
+            pass
 
-        # STEP 4: Score with live PubMed
-        logger.info("\n🎯 Step 4/5: Scoring drug-disease matches...")
-        self.scorer = ProductionScorer(graph)
+    # ── STEP 3: Fetch drug candidates (existing) ──────────────────────────
+    logger.info(f"[3/9] Fetching drug candidates...")
+    candidates = await pipeline.data_fetcher.fetch_drug_candidates(disease_data)
+    logger.info(f"     Found {len(candidates)} candidates")
 
-        drugs_with_targets = [d for d in drugs_data if d.get("targets")]
+    # ── STEP 4: Base scoring (existing) ───────────────────────────────────
+    logger.info(f"[4/9] Scoring candidates (base)...")
+    candidates = pipeline.scorer.score_candidates(
+        candidates, disease_data
+    )
+
+    # ── STEP 5: Tissue Expression Scoring (NEW: Module 2) ─────────────────
+    logger.info(f"[5/9] Tissue expression scoring...")
+    try:
+        from tissue_expression import TissueExpressionFilter
+        tef = TissueExpressionFilter(
+            cancer_type=disease_name,
+            session=pipeline.data_fetcher.session,
+        )
+        candidates = await tef.score_candidates(candidates)
+        # Apply tissue score to composite
+        for c in candidates:
+            c["composite_score"] = max(0.0, min(1.0,
+                c.get("composite_score", 0) + c.get("tissue_expression_score", 0)
+            ))
+        logger.info(f"     Tissue scoring applied to {len(candidates)} candidates")
+    except Exception as e:
+        logger.warning(f"     Tissue scoring failed (non-fatal): {e}")
+    finally:
+        try:
+            await tef.close()
+        except Exception:
+            pass
+
+    # Sort by updated composite score
+    candidates.sort(key=lambda c: c.get("composite_score", 0), reverse=True)
+
+    # ── STEP 6: Safety filter (existing) ──────────────────────────────────
+    logger.info(f"[6/9] Safety filtering...")
+    safe_candidates = [
+        c for c in candidates
+        if not c.get("safety_concerns") or len(c.get("safety_concerns", [])) < 3
+    ]
+    logger.info(f"     {len(safe_candidates)} candidates passed safety filter")
+
+    # ── STEP 7: Polypharmacology Scoring (NEW: Module 3) ──────────────────
+    logger.info(f"[7/9] Polypharmacology scoring...")
+    top_50 = safe_candidates[:50]
+    try:
+        from polypharmacology import PolypharmacologyScorer
+        poly_scorer = PolypharmacologyScorer(
+            disease_genes=disease_data.get("genes", []),
+            gene_scores=disease_data.get("gene_scores", {}),
+        )
+        top_50 = await poly_scorer.score_candidates(top_50)
+
+        # Find synergistic drug pairs
+        synergistic_pairs = await poly_scorer.find_synergistic_pairs(top_50[:20])
         logger.info(
-            f"   Fetching PubMed co-occurrence scores for "
-            f"{len(drugs_with_targets)} drugs..."
+            f"     Top pair: "
+            f"{synergistic_pairs[0]['drug_a']} + {synergistic_pairs[0]['drug_b']} "
+            f"(synergy: {synergistic_pairs[0]['synergy_score']:.3f})"
+            if synergistic_pairs else "     No pairs computed"
         )
-        pubmed_tasks = [
-            self._fetch_pubmed_score(d["name"], disease_data["name"])
-            for d in drugs_with_targets
-        ]
-        pubmed_scores_list = await asyncio.gather(*pubmed_tasks, return_exceptions=True)
-        pubmed_score_map   = {
-            d["name"]: (s if isinstance(s, float) else 0.0)
-            for d, s in zip(drugs_with_targets, pubmed_scores_list)
-        }
+    except Exception as e:
+        logger.warning(f"     Polypharmacology scoring failed (non-fatal): {e}")
+        synergistic_pairs = []
 
-        candidates = []
-        for drug in drugs_data:
-            lit_score = pubmed_score_map.get(drug["name"], 0.0)
-            score, evidence = self.scorer.score_drug_disease_match(
-                drug["name"],
-                disease_data["name"],
-                disease_data,
-                drug,
-                external_literature_score=lit_score,
-            )
+    # Re-sort with poly contribution
+    top_50.sort(
+        key=lambda c: (
+            c.get("composite_score", 0) +
+            c.get("polypharmacology_score", 0) * 0.3
+        ),
+        reverse=True,
+    )
 
-            if score >= min_score:
-                candidates.append(
-                    {
-                        "name":            drug["name"],
-                        "drug_name":       drug["name"],
-                        "drug_id":         drug.get("id", ""),
-                        "score":           score,
-                        "confidence":      evidence["confidence"],
-                        "shared_genes":    evidence["shared_genes"],
-                        "shared_pathways": evidence["shared_pathways"],
-                        "explanation":     evidence["explanation"],
-                        "indication":      drug.get("indication", ""),
-                        "mechanism":       drug.get("mechanism", ""),
-                        "gene_score":      evidence["gene_score"],
-                        "pathway_score":   evidence["pathway_score"],
-                        "mechanism_score": evidence["mechanism_score"],
-                        "literature_score":evidence["literature_score"],
-                    }
-                )
+    # ── STEP 8: In-Silico Trial Simulation (NEW: Module 4) ────────────────
+    logger.info(f"[8/9] Running virtual clinical trials (top {top_n_for_trial})...")
+    trial_results = []
+    trial_report  = ""
+    try:
+        from insilico_trial import InSilicoTrialSimulator
 
-        candidates.sort(key=lambda x: x["score"], reverse=True)
-        candidates = candidates[:max_results]
+        # Inject disease genes into candidates for network effect calculation
+        top_for_trial = top_50[:top_n_for_trial]
+        for c in top_for_trial:
+            c["disease_genes"] = disease_data.get("genes", [])
 
-        logger.info(f"✅ Found {len(candidates)} candidates above threshold {min_score}")
+        simulator    = InSilicoTrialSimulator(disease=disease_name, n_patients=200)
+        trial_results = await simulator.run_batch(top_for_trial)
+        trial_report  = simulator.generate_trial_report(trial_results)
 
-        # STEP 5: Summary
-        logger.info("\n📝 Step 5/5: Generating analysis summary...")
-        elapsed = time.time() - start_time
+        logger.info("     Virtual trials complete")
+    except Exception as e:
+        logger.warning(f"     Virtual trials failed (non-fatal): {e}")
 
-        result = {
-            "success": True,
-            "disease": {
-                "name":           disease_data["name"],
-                "id":             disease_data.get("id", ""),
-                "description":    disease_data.get("description", ""),
-                "genes_count":    len(disease_data["genes"]),
-                "pathways_count": len(disease_data["pathways"]),
-                "is_rare":        disease_data.get("is_rare", False),
-                "active_trials":  disease_data.get("active_trials_count", 0),
-                "top_genes":      disease_data["genes"][:10],
-            },
-            "candidates": candidates,
-            "metadata": {
-                "total_drugs_analyzed": len(drugs_data),
-                "candidates_found":     len(candidates),
-                "min_score_threshold":  min_score,
-                "graph_stats":          graph_stats,
-                "analysis_time_seconds":round(elapsed, 2),
-                "data_sources": [
-                    "OpenTargets Platform (disease-gene associations)",
-                    "ChEMBL (approved drugs — full max_phase=4 set)",
-                    "DGIdb (drug-gene interactions)",
-                    "PubMed E-utilities (literature co-occurrence)",
-                    "ClinicalTrials.gov (active trials)",
-                ],
-            },
-        }
+    # ── STEP 9: Assemble final results ────────────────────────────────────
+    logger.info(f"[9/9] Assembling final report...")
 
-        logger.info("=" * 70)
-        logger.info("✅ ANALYSIS COMPLETE!")
-        logger.info("=" * 70)
-        logger.info(f"Disease: {disease_data['name']}")
-        logger.info(f"Candidates found: {len(candidates)}")
-        logger.info(f"Analysis time: {elapsed:.2f}s")
-
-        if candidates:
-            logger.info("\n🏆 Top 5 candidates:")
-            for i, c in enumerate(candidates[:5], 1):
-                logger.info(f"  {i}. {c['drug_name']}")
-                logger.info(
-                    f"     Score: {c['score']:.3f} ({c['confidence']} confidence)"
-                )
-                logger.info(f"     Shared genes: {len(c['shared_genes'])}")
-                logger.info(f"     Shared pathways: {len(c['shared_pathways'])}")
-
-        return result
+    return {
+        "disease":            disease_name,
+        "disease_data":       disease_data,
+        "top_candidates":     top_50[:20],
+        "synergistic_pairs":  synergistic_pairs[:5],
+        "trial_results":      trial_results,
+        "trial_report":       trial_report,
+        "pipeline_stats": {
+            "total_candidates_evaluated":  len(candidates),
+            "after_safety_filter":         len(safe_candidates),
+            "efo_expansion": disease_data.get("efo_expansion_stats", {}),
+        },
+    }
 
     async def close(self):
         await self.data_fetcher.close()
