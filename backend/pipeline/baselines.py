@@ -20,8 +20,12 @@ Usage in run_validation.py:
     score = jac.score(drug_targets, disease_genes)
 """
 
+import asyncio
+import json as _json
 import math
 import logging
+import urllib.parse
+import urllib.request
 from typing import Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
@@ -287,89 +291,6 @@ class GeneCountBaseline:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Comparison runner — plug in to run_validation.py
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def run_extended_baseline_comparison(
-    pipeline,
-    test_cases: List[Dict],
-    neg_cases:  List[Dict],
-    top_k: int = 100,
-    use_network_proximity: bool = False,  # requires STRING DB download
-) -> Dict:
-    """
-    Run Jaccard, GeneCount, (optionally) NetworkProximity baselines.
-    Returns publication-ready metrics dict.
-
-    Add this call to run_validation.py after the main algorithm run,
-    then include all methods in the comparison table.
-    """
-    from backend.pipeline.baselines import CosineSimilarityBaseline, TextMiningBaseline
-
-    baselines = {
-        "jaccard":    JaccardOverlapBaseline(),
-        "gene_count": GeneCountBaseline(),
-        "cosine":     CosineSimilarityBaseline(use_tfidf=True),
-    }
-
-    if use_network_proximity:
-        net_prox = NetworkProximityBaseline()
-        await net_prox.build_ppi()
-        baselines["network_proximity"] = net_prox
-
-    counts = {name: {"tp": 0, "fn": 0, "tn": 0, "fp": 0} for name in baselines}
-
-    for case in test_cases:
-        disease_data = await pipeline.data_fetcher.fetch_disease_data(
-            case["repurposed_for"]
-        )
-        if not disease_data:
-            continue
-        drugs_data = pipeline.drugs_cache or []
-
-        for name, baseline in baselines.items():
-            if name == "cosine":
-                all_gene_lists = [d.get("targets", []) for d in drugs_data]
-                baseline.fit(all_gene_lists)
-                results = baseline.score_all(drugs_data, disease_data)
-            else:
-                results = baseline.score_all(drugs_data, disease_data)
-            top_names = {r["drug_name"].lower() for r in results[:top_k]}
-            found = case["drug_name"].lower() in top_names
-            counts[name]["tp" if found else "fn"] += 1
-
-    for neg in neg_cases:
-        disease_data = await pipeline.data_fetcher.fetch_disease_data(neg["disease"])
-        if not disease_data:
-            continue
-        drugs_data = pipeline.drugs_cache or []
-
-        for name, baseline in baselines.items():
-            if name == "cosine":
-                baseline.fit([d.get("targets", []) for d in drugs_data])
-                results = baseline.score_all(drugs_data, disease_data)
-            else:
-                results = baseline.score_all(drugs_data, disease_data)
-            top_names = {r["drug_name"].lower() for r in results[:top_k]}
-            excluded = neg["drug_name"].lower() not in top_names
-            counts[name]["tn" if excluded else "fp"] += 1
-
-    metrics = {}
-    for name, c in counts.items():
-        n_p = c["tp"] + c["fn"]
-        n_n = c["tn"] + c["fp"]
-        sens = c["tp"] / n_p if n_p else 0
-        spec = c["tn"] / n_n if n_n else 0
-        prec = c["tp"] / (c["tp"] + c["fp"]) if (c["tp"] + c["fp"]) else 0
-        f1   = 2 * prec * sens / (prec + sens) if (prec + sens) else 0
-        metrics[name] = {
-            "sensitivity": sens, "specificity": spec,
-            "precision": prec, "f1": f1, **c,
-        }
-
-    return metrics
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Baseline 4: Cosine similarity (TF-IDF weighted gene vectors)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -437,11 +358,6 @@ class CosineSimilarityBaseline:
 # Baseline 5: Text-mining (PubMed co-occurrence)
 # ─────────────────────────────────────────────────────────────────────────────
 
-import asyncio
-import urllib.parse
-import urllib.request
-import json as _json
-
 class TextMiningBaseline:
     """
     PubMed co-occurrence score: how often drug and disease appear together.
@@ -496,3 +412,89 @@ class TextMiningBaseline:
 
     async def close(self) -> None:
         pass  # no persistent session to close
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Comparison runner — plug in to run_validation.py
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def run_extended_baseline_comparison(
+    pipeline,
+    test_cases: List[Dict],
+    neg_cases:  List[Dict],
+    top_k: int = 100,
+    use_network_proximity: bool = False,  # requires STRING DB download
+) -> Dict:
+    """
+    Run Jaccard, GeneCount, (optionally) NetworkProximity baselines.
+    Returns publication-ready metrics dict.
+
+    Add this call to run_validation.py after the main algorithm run,
+    then include all methods in the comparison table.
+    """
+    # FIX: removed circular self-import:
+    #   `from backend.pipeline.baselines import CosineSimilarityBaseline, TextMiningBaseline`
+    # CosineSimilarityBaseline and TextMiningBaseline are defined in this file.
+
+    baselines = {
+        "jaccard":    JaccardOverlapBaseline(),
+        "gene_count": GeneCountBaseline(),
+        "cosine":     CosineSimilarityBaseline(use_tfidf=True),
+    }
+
+    if use_network_proximity:
+        net_prox = NetworkProximityBaseline()
+        await net_prox.build_ppi()
+        baselines["network_proximity"] = net_prox
+
+    counts = {name: {"tp": 0, "fn": 0, "tn": 0, "fp": 0} for name in baselines}
+
+    for case in test_cases:
+        disease_data = await pipeline.data_fetcher.fetch_disease_data(
+            case["repurposed_for"]
+        )
+        if not disease_data:
+            continue
+        drugs_data = pipeline.drugs_cache or []
+
+        for name, baseline in baselines.items():
+            if name == "cosine":
+                all_gene_lists = [d.get("targets", []) for d in drugs_data]
+                baseline.fit(all_gene_lists)
+                results = baseline.score_all(drugs_data, disease_data)
+            else:
+                results = baseline.score_all(drugs_data, disease_data)
+            top_names = {r["drug_name"].lower() for r in results[:top_k]}
+            found = case["drug_name"].lower() in top_names
+            counts[name]["tp" if found else "fn"] += 1
+
+    for neg in neg_cases:
+        disease_data = await pipeline.data_fetcher.fetch_disease_data(neg["disease"])
+        if not disease_data:
+            continue
+        drugs_data = pipeline.drugs_cache or []
+
+        for name, baseline in baselines.items():
+            if name == "cosine":
+                baseline.fit([d.get("targets", []) for d in drugs_data])
+                results = baseline.score_all(drugs_data, disease_data)
+            else:
+                results = baseline.score_all(drugs_data, disease_data)
+            top_names = {r["drug_name"].lower() for r in results[:top_k]}
+            excluded = neg["drug_name"].lower() not in top_names
+            counts[name]["tn" if excluded else "fp"] += 1
+
+    metrics = {}
+    for name, c in counts.items():
+        n_p = c["tp"] + c["fn"]
+        n_n = c["tn"] + c["fp"]
+        sens = c["tp"] / n_p if n_p else 0
+        spec = c["tn"] / n_n if n_n else 0
+        prec = c["tp"] / (c["tp"] + c["fp"]) if (c["tp"] + c["fp"]) else 0
+        f1   = 2 * prec * sens / (prec + sens) if (prec + sens) else 0
+        metrics[name] = {
+            "sensitivity": sens, "specificity": spec,
+            "precision": prec, "f1": f1, **c,
+        }
+
+    return metrics

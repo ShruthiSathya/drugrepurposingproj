@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from backend.pipeline.production_pipeline import ProductionPipeline
-from backend.pipeline.calibration import calibrate_score
+from backend.pipeline.calibration import load_calibrator
 from validation_dataset import (
     VALIDATION_CASES,
     DATASET_VERSION,
@@ -60,6 +60,7 @@ async def run_single_validation_case(
     pipeline: ProductionPipeline,
     drugs_data: List[Dict],
     case: Dict,
+    calibrator: any
 ) -> Dict:
     """
     Run one validation case: fetch disease data, score all drugs, return result.
@@ -88,7 +89,7 @@ async def run_single_validation_case(
             "status":            "analysis_failed",
             "reason":            "Disease not found in OpenTargets",
             "raw_score":         0.0,
-            "calibrated_score":  calibrate_score(0.0),
+            "calibrated_score":  calibrate_scores(0.0),
             "rank":              None,
             "expected_rank_top_n": case["expected_rank_top_n"],
             "rank_pass":         False,
@@ -120,7 +121,7 @@ async def run_single_validation_case(
 
     if found_candidate is None:
         raw_score  = 0.0
-        cal_score  = calibrate_score(0.0)
+        cal_score  = calibrate_scores(0.0)
         rank_ok    = False
         score_ok   = case["status"] == "TRUE_NEGATIVE"
         passed     = score_ok  # TRUE_NEGATIVE passes if not found; TRUE_POSITIVE fails
@@ -131,7 +132,7 @@ async def run_single_validation_case(
         logger.info(f"    {drug_name} not in candidates — status: {result_status}")
     else:
         raw_score = found_candidate["score"]
-        cal_score = calibrate_score(raw_score)
+        cal_score = calibrator.transform(raw_score)
 
         if case["status"] == "TRUE_POSITIVE":
             # v3.1: rank-based OR score-based pass criterion
@@ -197,6 +198,7 @@ async def run_all_validations(
 ) -> Dict:
     """Run all validation cases and write results JSON."""
     pipeline  = ProductionPipeline()
+    calibrator = load_calibrator()
     start_utc = datetime.now(timezone.utc)
 
     logger.info("=" * 70)
@@ -213,13 +215,13 @@ async def run_all_validations(
     logger.info(f"Running {len(positive_cases)} TRUE_POSITIVE cases...")
     positive_results = []
     for case in positive_cases:
-        result = await run_single_validation_case(pipeline, drugs_data, case)
+        result = await run_single_validation_case(pipeline, drugs_data, case, calibrator)
         positive_results.append(result)
 
     logger.info(f"\nRunning {len(negative_cases)} TRUE_NEGATIVE cases...")
     negative_results = []
     for case in negative_cases:
-        result = await run_single_validation_case(pipeline, drugs_data, case)
+        result = await run_single_validation_case(pipeline, drugs_data, case, calibrator)
         negative_results.append(result)
 
     await pipeline.close()

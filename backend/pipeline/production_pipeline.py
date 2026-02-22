@@ -1,4 +1,3 @@
-
 import asyncio
 import aiohttp
 import logging
@@ -90,13 +89,6 @@ class ProductionPipeline:
         return self.drugs_cache
 
     # ── generate_candidates() — callable by benchmark/validation scripts ──────
-    import asyncio
-    import logging
-    from typing import Dict, List
-
-    logger = logging.getLogger(__name__)
-
-
     async def generate_candidates(
         self,
         disease_data:  Dict,
@@ -139,10 +131,6 @@ class ProductionPipeline:
             gene_score, pathway_score, ppi_score, similarity_score,
             mechanism_score, literature_score
         """
-        from .ppi_network import PPINetworkScorer, batch_ppi_scores
-        from .drug_similarity import DrugSimilarityScorer, build_reference_smiles, batch_similarity_scores
-        from .scorer import ProductionScorer
-
         graph  = self.graph_builder.build_graph(disease_data, drugs_data)
         scorer = ProductionScorer(graph)
 
@@ -251,168 +239,168 @@ class ProductionPipeline:
 
     # ── Main entry point ──────────────────────────────────────────────────────
     async def analyze_disease(
-    pipeline,           # your ProductionPipeline instance
-    disease_name: str,
-    top_n_for_trial: int = 10,  # how many candidates to run virtual trials on
-) -> Dict:
-    """
-    Enhanced pipeline analysis with all 4 new modules integrated.
+        self,                    # FIX: was `pipeline` (not a valid method parameter)
+        disease_name: str,
+        top_n_for_trial: int = 10,
+    ) -> Dict:
+        """
+        Enhanced pipeline analysis with all 4 new modules integrated.
 
-    Parameters
-    ----------
-    pipeline : ProductionPipeline
-        Your existing pipeline instance.
-    disease_name : str
-        Disease name, e.g. "pancreatic ductal adenocarcinoma"
-    top_n_for_trial : int
-        Number of top candidates to pass to in-silico trial simulator.
+        Parameters
+        ----------
+        disease_name : str
+            Disease name, e.g. "pancreatic ductal adenocarcinoma"
+        top_n_for_trial : int
+            Number of top candidates to pass to in-silico trial simulator.
 
-    Returns
-    -------
-    dict with all results including virtual trial outcomes.
-    """
+        Returns
+        -------
+        dict with all results including virtual trial outcomes.
+        """
 
-    # ── STEP 1: Fetch disease data (existing) ──────────────────────────────
-    logger.info(f"[1/9] Fetching disease data: {disease_name}")
-    disease_data = await pipeline.data_fetcher.fetch_disease_data(disease_name)
+        # ── STEP 1: Fetch disease data (existing) ──────────────────────────────
+        logger.info(f"[1/9] Fetching disease data: {disease_name}")
+        disease_data = await self.data_fetcher.fetch_disease_data(disease_name)
 
-    if not disease_data:
-        return {"error": f"Disease not found: {disease_name}"}
+        if not disease_data:
+            return {"error": f"Disease not found: {disease_name}"}
 
-    # ── STEP 2: EFO Ontology Expansion (NEW: Module 1) ────────────────────
-    logger.info(f"[2/9] EFO ontology expansion...")
-    try:
-        from efo_ontology import EFOOntologyExpander
-        expander = EFOOntologyExpander(session=pipeline.data_fetcher.session)
-        disease_data = await expander.expand_disease_genes(disease_data)
-        stats = disease_data.get("efo_expansion_stats", {})
-        logger.info(
-            f"     EFO: {stats.get('original_gene_count')} → "
-            f"{stats.get('total_gene_count')} genes "
-            f"(+{stats.get('new_genes_added')} from ontology tree)"
-        )
-    except Exception as e:
-        logger.warning(f"     EFO expansion failed (non-fatal): {e}")
-    finally:
+        # ── STEP 2: EFO Ontology Expansion (NEW: Module 1) ────────────────────
+        logger.info(f"[2/9] EFO ontology expansion...")
         try:
-            await expander.close()
-        except Exception:
-            pass
+            from efo_ontology import EFOOntologyExpander
+            expander = EFOOntologyExpander(session=self.data_fetcher.session)
+            disease_data = await expander.expand_disease_genes(disease_data)
+            stats = disease_data.get("efo_expansion_stats", {})
+            logger.info(
+                f"     EFO: {stats.get('original_gene_count')} → "
+                f"{stats.get('total_gene_count')} genes "
+                f"(+{stats.get('new_genes_added')} from ontology tree)"
+            )
+        except Exception as e:
+            logger.warning(f"     EFO expansion failed (non-fatal): {e}")
+        finally:
+            try:
+                await expander.close()
+            except Exception:
+                pass
 
-    # ── STEP 3: Fetch drug candidates (existing) ──────────────────────────
-    logger.info(f"[3/9] Fetching drug candidates...")
-    candidates = await pipeline.data_fetcher.fetch_drug_candidates(disease_data)
-    logger.info(f"     Found {len(candidates)} candidates")
+        # ── STEP 3: Fetch drug candidates (existing) ──────────────────────────
+        logger.info(f"[3/9] Fetching drug candidates...")
+        candidates = await self.data_fetcher.fetch_drug_candidates(disease_data)
+        logger.info(f"     Found {len(candidates)} candidates")
 
-    # ── STEP 4: Base scoring (existing) ───────────────────────────────────
-    logger.info(f"[4/9] Scoring candidates (base)...")
-    candidates = pipeline.scorer.score_candidates(
-        candidates, disease_data
-    )
-
-    # ── STEP 5: Tissue Expression Scoring (NEW: Module 2) ─────────────────
-    logger.info(f"[5/9] Tissue expression scoring...")
-    try:
-        from tissue_expression import TissueExpressionFilter
-        tef = TissueExpressionFilter(
-            cancer_type=disease_name,
-            session=pipeline.data_fetcher.session,
+        # ── STEP 4: Base scoring (existing) ───────────────────────────────────
+        logger.info(f"[4/9] Scoring candidates (base)...")
+        candidates = self.scorer.score_candidates(
+            candidates, disease_data
         )
-        candidates = await tef.score_candidates(candidates)
-        # Apply tissue score to composite
-        for c in candidates:
-            c["composite_score"] = max(0.0, min(1.0,
-                c.get("composite_score", 0) + c.get("tissue_expression_score", 0)
-            ))
-        logger.info(f"     Tissue scoring applied to {len(candidates)} candidates")
-    except Exception as e:
-        logger.warning(f"     Tissue scoring failed (non-fatal): {e}")
-    finally:
+
+        # ── STEP 5: Tissue Expression Scoring (NEW: Module 2) ─────────────────
+        logger.info(f"[5/9] Tissue expression scoring...")
         try:
-            await tef.close()
-        except Exception:
-            pass
+            from tissue_expression import TissueExpressionFilter
+            tef = TissueExpressionFilter(
+                cancer_type=disease_name,
+                session=self.data_fetcher.session,
+            )
+            candidates = await tef.score_candidates(candidates)
+            # Apply tissue score to composite
+            for c in candidates:
+                c["composite_score"] = max(0.0, min(1.0,
+                    c.get("composite_score", 0) + c.get("tissue_expression_score", 0)
+                ))
+            logger.info(f"     Tissue scoring applied to {len(candidates)} candidates")
+        except Exception as e:
+            logger.warning(f"     Tissue scoring failed (non-fatal): {e}")
+        finally:
+            try:
+                await tef.close()
+            except Exception:
+                pass
 
-    # Sort by updated composite score
-    candidates.sort(key=lambda c: c.get("composite_score", 0), reverse=True)
+        # Sort by updated composite score
+        candidates.sort(key=lambda c: c.get("composite_score", 0), reverse=True)
 
-    # ── STEP 6: Safety filter (existing) ──────────────────────────────────
-    logger.info(f"[6/9] Safety filtering...")
-    safe_candidates = [
-        c for c in candidates
-        if not c.get("safety_concerns") or len(c.get("safety_concerns", [])) < 3
-    ]
-    logger.info(f"     {len(safe_candidates)} candidates passed safety filter")
+        # ── STEP 6: Safety filter (existing) ──────────────────────────────────
+        logger.info(f"[6/9] Safety filtering...")
+        safe_candidates = [
+            c for c in candidates
+            if not c.get("safety_concerns") or len(c.get("safety_concerns", [])) < 3
+        ]
+        logger.info(f"     {len(safe_candidates)} candidates passed safety filter")
 
-    # ── STEP 7: Polypharmacology Scoring (NEW: Module 3) ──────────────────
-    logger.info(f"[7/9] Polypharmacology scoring...")
-    top_50 = safe_candidates[:50]
-    try:
-        from polypharmacology import PolypharmacologyScorer
-        poly_scorer = PolypharmacologyScorer(
-            disease_genes=disease_data.get("genes", []),
-            gene_scores=disease_data.get("gene_scores", {}),
+        # ── STEP 7: Polypharmacology Scoring (NEW: Module 3) ──────────────────
+        logger.info(f"[7/9] Polypharmacology scoring...")
+        top_50 = safe_candidates[:50]
+        try:
+            from polypharmacology import PolypharmacologyScorer
+            poly_scorer = PolypharmacologyScorer(
+                disease_genes=disease_data.get("genes", []),
+                gene_scores=disease_data.get("gene_scores", {}),
+            )
+            top_50 = await poly_scorer.score_candidates(top_50)
+
+            # Find synergistic drug pairs
+            synergistic_pairs = await poly_scorer.find_synergistic_pairs(top_50[:20])
+            logger.info(
+                f"     Top pair: "
+                f"{synergistic_pairs[0]['drug_a']} + {synergistic_pairs[0]['drug_b']} "
+                f"(synergy: {synergistic_pairs[0]['synergy_score']:.3f})"
+                if synergistic_pairs else "     No pairs computed"
+            )
+        except Exception as e:
+            logger.warning(f"     Polypharmacology scoring failed (non-fatal): {e}")
+            synergistic_pairs = []
+
+        # Re-sort with poly contribution
+        top_50.sort(
+            key=lambda c: (
+                c.get("composite_score", 0) +
+                c.get("polypharmacology_score", 0) * 0.3
+            ),
+            reverse=True,
         )
-        top_50 = await poly_scorer.score_candidates(top_50)
 
-        # Find synergistic drug pairs
-        synergistic_pairs = await poly_scorer.find_synergistic_pairs(top_50[:20])
-        logger.info(
-            f"     Top pair: "
-            f"{synergistic_pairs[0]['drug_a']} + {synergistic_pairs[0]['drug_b']} "
-            f"(synergy: {synergistic_pairs[0]['synergy_score']:.3f})"
-            if synergistic_pairs else "     No pairs computed"
-        )
-    except Exception as e:
-        logger.warning(f"     Polypharmacology scoring failed (non-fatal): {e}")
-        synergistic_pairs = []
+        # ── STEP 8: In-Silico Trial Simulation (NEW: Module 4) ────────────────
+        logger.info(f"[8/9] Running virtual clinical trials (top {top_n_for_trial})...")
+        trial_results = []
+        trial_report  = ""
+        try:
+            from insilico_trial import InSilicoTrialSimulator
 
-    # Re-sort with poly contribution
-    top_50.sort(
-        key=lambda c: (
-            c.get("composite_score", 0) +
-            c.get("polypharmacology_score", 0) * 0.3
-        ),
-        reverse=True,
-    )
+            # Inject disease genes into candidates for network effect calculation
+            top_for_trial = top_50[:top_n_for_trial]
+            for c in top_for_trial:
+                c["disease_genes"] = disease_data.get("genes", [])
 
-    # ── STEP 8: In-Silico Trial Simulation (NEW: Module 4) ────────────────
-    logger.info(f"[8/9] Running virtual clinical trials (top {top_n_for_trial})...")
-    trial_results = []
-    trial_report  = ""
-    try:
-        from insilico_trial import InSilicoTrialSimulator
+            simulator    = InSilicoTrialSimulator(disease=disease_name, n_patients=200)
+            trial_results = await simulator.run_batch(top_for_trial)
+            trial_report  = simulator.generate_trial_report(trial_results)
 
-        # Inject disease genes into candidates for network effect calculation
-        top_for_trial = top_50[:top_n_for_trial]
-        for c in top_for_trial:
-            c["disease_genes"] = disease_data.get("genes", [])
+            logger.info("     Virtual trials complete")
+        except Exception as e:
+            logger.warning(f"     Virtual trials failed (non-fatal): {e}")
 
-        simulator    = InSilicoTrialSimulator(disease=disease_name, n_patients=200)
-        trial_results = await simulator.run_batch(top_for_trial)
-        trial_report  = simulator.generate_trial_report(trial_results)
+        # ── STEP 9: Assemble final results ────────────────────────────────────
+        logger.info(f"[9/9] Assembling final report...")
 
-        logger.info("     Virtual trials complete")
-    except Exception as e:
-        logger.warning(f"     Virtual trials failed (non-fatal): {e}")
+        return {
+            "disease":            disease_name,
+            "disease_data":       disease_data,
+            "top_candidates":     top_50[:20],
+            "synergistic_pairs":  synergistic_pairs[:5],
+            "trial_results":      trial_results,
+            "trial_report":       trial_report,
+            "pipeline_stats": {
+                "total_candidates_evaluated":  len(candidates),
+                "after_safety_filter":         len(safe_candidates),
+                "efo_expansion": disease_data.get("efo_expansion_stats", {}),
+            },
+        }
 
-    # ── STEP 9: Assemble final results ────────────────────────────────────
-    logger.info(f"[9/9] Assembling final report...")
-
-    return {
-        "disease":            disease_name,
-        "disease_data":       disease_data,
-        "top_candidates":     top_50[:20],
-        "synergistic_pairs":  synergistic_pairs[:5],
-        "trial_results":      trial_results,
-        "trial_report":       trial_report,
-        "pipeline_stats": {
-            "total_candidates_evaluated":  len(candidates),
-            "after_safety_filter":         len(safe_candidates),
-            "efo_expansion": disease_data.get("efo_expansion_stats", {}),
-        },
-    }
-
+    # FIX: close() was previously indented inside analyze_disease, making it
+    # unreachable as a class method. Now correctly at class level.
     async def close(self):
         await self.data_fetcher.close()
         if self._pubmed_session and not self._pubmed_session.closed:

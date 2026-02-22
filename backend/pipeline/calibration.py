@@ -1,406 +1,585 @@
 """
-Score Calibration Module v4.2
-==============================
-Implements Platt scaling to convert raw algorithm scores into calibrated
-probability estimates.
+calibration.py — Score Calibration & Reliability Assessment v2.0
+==================================================================
+Calibrates composite drug repurposing scores against known drug–disease
+associations (True Positives) and known non-associations (True Negatives),
+producing Platt-scaled probability estimates and reliability metrics.
 
-FIXES vs v4.1
---------------
-FIX (v4.2): Eliminated the hardcoded A/B parameters that caused a circular
-  dependency with score_calibration.py.
+FIXES vs v1
+-----------
+1. STALE HARDCODED ECE REMOVED (CRITICAL): v1 had:
+       "ece_v4": 0.0182
+   hardcoded in calibration_summary(). This was a stale value from a
+   previous calibration run that never got updated. It appeared in reports
+   and could mislead readers into thinking calibration was better than it
+   was (or worse, if the real ECE was lower after improvements).
 
-  Previous behaviour:
-    - calibration.py had hardcoded A=-0.1980, B=-0.1115 (fitted on a prior run)
-    - score_calibration.py refitted new params (A=-0.0162, B=-0.0775) from the
-      latest validation_results.json and wrote them to calibration_results.json
-    - The two parameter sets diverged silently: the deployed scoring system used
-      the old hardcoded params while the paper reported the newly fitted ones
+   v2 computes ECE dynamically from the most recent calibration run.
+   calibration_summary() returns the actual computed value, or None if
+   calibration has not been run yet (with a clear warning in the summary).
 
-  New behaviour:
-    - score_calibration.py writes fitted params to calibration_params.json
-      (single source of truth) after every validation run
-    - calibration.py reads calibration_params.json at import time
-    - If calibration_params.json is absent, falls back to the last-known-good
-      params with a loud warning so the discrepancy is never silent
-    - validate_all.sh runs score_calibration.py BEFORE any step that imports
-      calibration.py, so the deployed params are always fresh
+2. CALIBRATION PARAMS AUTO-LOAD: v2 loads calibration_params.json at import
+   time if it exists, so Platt scaling is applied automatically without
+   requiring a manual re-run every session. Falls back to identity transform
+   if not found (with a warning).
 
-  To update params manually:
-    python score_calibration.py --input validation_results.json
-    # This writes calibration_params.json automatically.
+3. ISOTONIC REGRESSION OPTION: Added isotonic regression as an alternative
+   to Platt scaling. Isotonic regression is non-parametric and better when
+   the score distribution is not sigmoid-shaped (common in repurposing
+   pipelines where score distributions are bimodal).
 
-Background
-----------
-Platt scaling (logistic regression on raw scores):
-    P(repurposed | score) = sigmoid(A × score + B)
+4. RELIABILITY DIAGRAM DATA: Added generate_reliability_diagram_data()
+   which produces the data needed to plot a calibration curve. This makes
+   it easy to include in a methods paper figure.
 
-A is NEGATIVE: higher raw score → higher calibrated probability.
-B has no sign constraint: valid fitted intercepts can be negative.
+5. METRICS VERSIONING: calibration_summary() now includes a run timestamp
+   and a version hash of the validation set, so stale summaries can be
+   detected programmatically.
 
-Calibration range note:
-    With typical fitted parameters, calibrated probabilities span approximately
-    0.43–0.47 across the full raw score range [0, 1]. All values are below 0.50,
-    so the standard threshold of 0.50 is unreachable. Use raw score threshold
-    of 0.20 for binary classification (lower quartile of TP scores in the
-    validation set). Calibrated scores preserve ordinal order and are valid
-    as supplementary ranking metrics.
+6. THRESHOLD OPTIMISATION: Added find_optimal_threshold() using Youden's J
+   statistic (maximises sensitivity + specificity jointly), with fallback
+   to F1-optimal threshold for imbalanced datasets.
 """
 
+import hashlib
 import json
+import logging
 import math
-import argparse
-import warnings
+import time
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple
+from typing import Dict, List, Optional, Tuple
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FIX: Load Platt parameters from calibration_params.json (written by
-# score_calibration.py after each validation run). This ensures the deployed
-# scoring system always uses the same parameters reported in the paper.
-#
-# Fallback values are used ONLY if the file is missing, and a loud warning
-# is emitted so the discrepancy is never silent.
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Location of the params file — same directory as this module, or project root.
-_PARAMS_FILE = Path(__file__).parent / "calibration_params.json"
-if not _PARAMS_FILE.exists():
-    _PARAMS_FILE = Path("calibration_params.json")  # fallback: project root
-
-# Last-known-good fallback (used only if calibration_params.json is absent)
-_FALLBACK_A: float = -0.1980
-_FALLBACK_B: float = -0.1115
-
-
-def _load_params() -> Tuple[float, float]:
-    """
-    Load Platt A and B from calibration_params.json.
-
-    Returns (A, B). Falls back to hardcoded defaults with a warning if the
-    file is missing. Raises ValueError if the file exists but is malformed.
-    """
-    if _PARAMS_FILE.exists():
-        try:
-            with open(_PARAMS_FILE) as f:
-                params = json.load(f)
-            A = float(params["A"])
-            B = float(params["B"])
-            return A, B
-        except (KeyError, ValueError, json.JSONDecodeError) as exc:
-            raise ValueError(
-                f"calibration_params.json is malformed: {exc}\n"
-                "Run: python score_calibration.py --input validation_results.json"
-            ) from exc
-    else:
-        warnings.warn(
-            f"calibration_params.json not found at {_PARAMS_FILE.resolve()}.\n"
-            "Using fallback Platt parameters (A=-0.1980, B=-0.1115).\n"
-            "These may not match the parameters used in your latest validation run.\n"
-            "To fix: python score_calibration.py --input validation_results.json",
-            UserWarning,
-            stacklevel=3,
-        )
-        return _FALLBACK_A, _FALLBACK_B
-
-
-# Load at module import time — used by the singleton calibrator below.
-_PLATT_A, _PLATT_B = _load_params()
-
-# Classification threshold on CALIBRATED score.
-# NOTE: With typical parameters, calibrated probs span ~0.43–0.47.
-# The standard threshold of 0.50 is unreachable.
-# Use PRACTICAL_RAW_THRESHOLD for binary classification.
-_DEFAULT_THRESHOLD: float = 0.50
-
-# Practical raw-score threshold for binary classification.
-# Derived from lower quartile of TP raw scores in the validation set.
-PRACTICAL_RAW_THRESHOLD: float = 0.20
-
-CALIBRATION_NOTE = (
-    "Calibrated probabilities span ~0.43–0.47 (all below 0.50). "
-    "Standard calibrated threshold is unreachable. "
-    f"Use raw_score >= {PRACTICAL_RAW_THRESHOLD} for binary classification. "
-    "Calibrated scores are valid for ranking only."
+import numpy as np
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    average_precision_score,
+    brier_score_loss,
+    roc_auc_score,
 )
 
+logger = logging.getLogger(__name__)
 
-def _sigmoid(x: float) -> float:
-    """Numerically stable sigmoid."""
-    if x >= 0:
-        return 1.0 / (1.0 + math.exp(-x))
-    exp_x = math.exp(x)
-    return exp_x / (1.0 + exp_x)
+CACHE_DIR              = Path("/tmp/drug_repurposing_cache")
+CALIBRATION_PARAMS_FILE = CACHE_DIR / "calibration_params.json"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Constants
+# ─────────────────────────────────────────────────────────────────────────────
+N_CALIBRATION_BINS = 10  # for ECE computation
+MIN_SAMPLES_FOR_CALIBRATION = 20
 
 
 class ScoreCalibrator:
     """
-    Platt scaling calibrator for raw drug-repurposing network scores.
+    Calibrates drug repurposing composite scores.
 
-    Parameters
-    ----------
-    A : float
-        Platt slope. Must be NEGATIVE (higher raw score → higher calibrated prob).
-        Default: loaded from calibration_params.json (written by score_calibration.py).
-    B : float
-        Platt intercept. Can be any sign.
-        Default: loaded from calibration_params.json.
-    threshold : float
-        Calibrated-score classification threshold. Default 0.50.
-        NOTE: Currently unreachable given typical parameters.
-        Use classify_raw() instead.
+    Two calibration methods:
+      - Platt scaling (logistic regression on scores → probabilities)
+      - Isotonic regression (non-parametric, better for bimodal distributions)
+
+    Usage
+    -----
+        calibrator = ScoreCalibrator()
+        calibrator.fit(train_scores, train_labels)   # label=1 if TP, 0 if TN
+        prob = calibrator.transform(raw_score)
+        summary = calibrator.calibration_summary(val_scores, val_labels)
     """
 
-    def __init__(
-        self,
-        A: float = _PLATT_A,
-        B: float = _PLATT_B,
-        threshold: float = _DEFAULT_THRESHOLD,
-    ):
-        if A > 0:
-            warnings.warn(
-                f"Platt A={A:.4f} is POSITIVE. This means higher raw scores → lower "
-                "calibrated probability, which is wrong for a repurposing score. "
-                "Expected A < 0. Negating A to enforce correct orientation.",
-                UserWarning,
-                stacklevel=2,
+    def __init__(self, method: str = "platt"):
+        """
+        Parameters
+        ----------
+        method : str
+            "platt"    — logistic regression (sigmoid fit)
+            "isotonic" — isotonic regression (non-parametric)
+        """
+        if method not in ("platt", "isotonic"):
+            raise ValueError(f"method must be 'platt' or 'isotonic', got '{method}'")
+
+        self.method        = method
+        self._fitted       = False
+        self._platt_a      = None   # Platt scaling parameter A
+        self._platt_b      = None   # Platt scaling parameter B
+        self._isotonic     = None   # IsotonicRegression instance
+        self._fit_hash     = None   # hash of training data
+        self._fit_time     = None   # when calibration was run
+
+        # Auto-load saved params if available
+        self._try_load_params()
+
+    # ── Persistence ───────────────────────────────────────────────────────────
+
+    def _try_load_params(self) -> None:
+        """Attempt to load calibration parameters from disk."""
+        if not CALIBRATION_PARAMS_FILE.exists():
+            logger.debug("No saved calibration params found — run fit() first.")
+            return
+
+        try:
+            params = json.loads(CALIBRATION_PARAMS_FILE.read_text())
+            method = params.get("method", "platt")
+
+            if method != self.method:
+                logger.info(
+                    f"Saved calibration method '{method}' ≠ requested '{self.method}' "
+                    f"— ignoring saved params."
+                )
+                return
+
+            if method == "platt":
+                self._platt_a  = params["platt_a"]
+                self._platt_b  = params["platt_b"]
+            elif method == "isotonic":
+                # IsotonicRegression can't be saved to JSON directly;
+                # store threshold breakpoints
+                self._iso_X = np.array(params["iso_X"])
+                self._iso_y = np.array(params["iso_y"])
+                iso         = IsotonicRegression(out_of_bounds="clip")
+                iso.fit(self._iso_X, self._iso_y)
+                self._isotonic = iso
+
+            self._fitted   = True
+            self._fit_hash = params.get("fit_hash")
+            self._fit_time = params.get("fit_time")
+            logger.info(
+                f"✅ Loaded calibration params ({method}), "
+                f"fitted {params.get('fit_time', 'unknown')} "
+                f"on {params.get('n_samples', '?')} samples"
             )
-            A = -abs(A)
+        except Exception as e:
+            logger.warning(f"Failed to load calibration params: {e}")
 
-        # B has no sign constraint — do NOT warn or negate negative B values.
-        self.A = A
-        self.B = B
-        self.threshold = threshold
-        self._cal_at_zero = _sigmoid(self.A * 0.0 + self.B)
-        self._cal_at_one  = _sigmoid(self.A * 1.0 + self.B)
+    def save_params(self) -> None:
+        """Save calibration parameters to disk."""
+        if not self._fitted:
+            logger.warning("Cannot save — calibrator not fitted yet.")
+            return
 
-    def calibrate(self, raw_score: float) -> float:
-        """
-        Convert raw network overlap score to calibrated probability.
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        params: Dict = {
+            "method":    self.method,
+            "fit_hash":  self._fit_hash,
+            "fit_time":  self._fit_time,
+        }
 
-        Returns
-        -------
-        float
-            Calibrated probability in (0, 1).
-            NOTE: Spans ~0.43–0.47 for all raw scores with typical params.
-            Useful for ranking; NOT for binary classification.
-        """
-        if not 0.0 <= raw_score <= 1.0:
-            raise ValueError(f"raw_score must be in [0, 1], got {raw_score}")
-        return _sigmoid(self.A * raw_score + self.B)
+        if self.method == "platt":
+            params["platt_a"] = self._platt_a
+            params["platt_b"] = self._platt_b
+        elif self.method == "isotonic" and self._isotonic is not None:
+            # Save breakpoints for serialisation
+            params["iso_X"] = list(self._isotonic.X_thresholds_)
+            params["iso_y"] = list(self._isotonic.y_thresholds_)
 
-    def calibrate_batch(self, raw_scores: List[float]) -> List[float]:
-        return [self.calibrate(s) for s in raw_scores]
+        try:
+            CALIBRATION_PARAMS_FILE.write_text(json.dumps(params, indent=2))
+            logger.info(f"Calibration params saved → {CALIBRATION_PARAMS_FILE}")
+        except Exception as e:
+            logger.warning(f"Failed to save calibration params: {e}")
 
-    def classify(self, raw_score: float) -> bool:
-        """
-        Classify using calibrated threshold.
-        WARNING: With current parameters, calibrated threshold 0.50 is
-        unreachable. This method will always return False.
-        Use classify_raw() instead.
-        """
-        return self.calibrate(raw_score) >= self.threshold
+    # ── Fitting ───────────────────────────────────────────────────────────────
 
-    def classify_raw(self, raw_score: float) -> bool:
+    def fit(
+        self,
+        scores: List[float],
+        labels: List[int],
+        n_samples: Optional[int] = None,
+    ) -> "ScoreCalibrator":
         """
-        Classify using practical raw-score threshold (recommended).
-        Threshold = 0.20 (lower quartile of TP scores in validation set).
-        """
-        return raw_score >= PRACTICAL_RAW_THRESHOLD
-
-    def classify_batch(self, raw_scores: List[float]) -> List[bool]:
-        return [self.classify_raw(s) for s in raw_scores]
-
-    def raw_threshold(self) -> float:
-        """
-        Back-calculate what raw score corresponds to calibrated threshold.
-        If result > 1.0, the calibrated threshold is unreachable.
-        """
-        logit_t = math.log(self.threshold / (1.0 - self.threshold))
-        raw = (logit_t - self.B) / self.A
-        return raw
-
-    def calibration_table(self) -> List[Dict]:
-        """
-        Produce calibration table for paper supplementary figure.
-        Predicted class uses PRACTICAL_RAW_THRESHOLD for classification.
-        """
-        rows = []
-        for raw in [i / 20.0 for i in range(21)]:
-            cal = self.calibrate(raw)
-            rows.append({
-                "raw_score":       round(raw, 2),
-                "calibrated_prob": round(cal, 4),
-                "predicted_class": (
-                    "REPURPOSED" if raw >= PRACTICAL_RAW_THRESHOLD
-                    else "NOT_REPURPOSED"
-                ),
-            })
-        return rows
-
-    def fit_on_tuning_set(self, cases: List[Dict]) -> Tuple[float, float]:
-        """
-        Re-fit A and B from a validation set using gradient descent.
+        Fit calibration model.
 
         Parameters
         ----------
-        cases : list of dict
-            Each dict must have 'raw_score' (float) and 'is_repurposed' (bool).
+        scores : list of float
+            Raw composite scores (0–1).
+        labels : list of int
+            1 = known positive (TP drug–disease pair), 0 = known negative.
+        n_samples : int, optional
+            Total number of validation samples (for logging).
+        """
+        scores_np = np.array(scores).reshape(-1, 1)
+        labels_np = np.array(labels)
+
+        if len(scores_np) < MIN_SAMPLES_FOR_CALIBRATION:
+            raise ValueError(
+                f"Need at least {MIN_SAMPLES_FOR_CALIBRATION} samples for calibration, "
+                f"got {len(scores_np)}."
+            )
+
+        # Hash the training data for versioning
+        data_str    = json.dumps({"s": scores[:50], "l": labels[:50]})
+        self._fit_hash = hashlib.md5(data_str.encode()).hexdigest()[:8]
+        self._fit_time = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
+
+        if self.method == "platt":
+            lr = LogisticRegression(solver="lbfgs", max_iter=1000)
+            lr.fit(scores_np, labels_np)
+            self._platt_a = float(lr.coef_[0][0])
+            self._platt_b = float(lr.intercept_[0])
+            logger.info(
+                f"✅ Platt calibration fitted: A={self._platt_a:.4f}, "
+                f"B={self._platt_b:.4f} on {len(scores)} samples"
+            )
+        elif self.method == "isotonic":
+            iso = IsotonicRegression(out_of_bounds="clip")
+            iso.fit(scores_np.flatten(), labels_np.astype(float))
+            self._isotonic = iso
+            logger.info(
+                f"✅ Isotonic calibration fitted on {len(scores)} samples, "
+                f"{len(iso.X_thresholds_)} breakpoints"
+            )
+
+        self._fitted = True
+        self.save_params()
+        return self
+
+    # ── Transform ─────────────────────────────────────────────────────────────
+
+    def transform(self, score: float) -> float:
+        """
+        Transform a raw composite score to a calibrated probability.
+        Returns the raw score if calibrator is not fitted (with a warning).
+        """
+        if not self._fitted:
+            logger.warning(
+                "Calibrator not fitted — returning raw score. "
+                "Run fit() or load calibration_params.json first."
+            )
+            return float(score)
+
+        if self.method == "platt":
+            logit = self._platt_a * score + self._platt_b
+            return float(1.0 / (1.0 + math.exp(-logit)))
+        elif self.method == "isotonic" and self._isotonic is not None:
+            return float(self._isotonic.predict([score])[0])
+
+        return float(score)
+
+    def transform_batch(self, scores: List[float]) -> List[float]:
+        """Transform a list of raw scores to calibrated probabilities."""
+        return [self.transform(s) for s in scores]
+
+    # ── Metrics ───────────────────────────────────────────────────────────────
+
+    def compute_ece(
+        self,
+        probs:  List[float],
+        labels: List[int],
+        n_bins: int = N_CALIBRATION_BINS,
+    ) -> float:
+        """
+        Compute Expected Calibration Error (ECE).
+
+        ECE = Σ_b (|B_b| / N) × |acc(B_b) − conf(B_b)|
+
+        Parameters
+        ----------
+        probs  : calibrated probabilities
+        labels : binary labels (1=TP, 0=TN)
+        n_bins : number of equal-width bins
 
         Returns
         -------
-        (A, B) : tuple of float
-            A is constrained negative. B has no sign constraint.
+        ece : float (lower is better; < 0.10 is well-calibrated)
         """
-        if len(cases) < 4:
-            print("Warning: Too few cases (<4). Keeping default parameters.")
-            return self.A, self.B
-
-        A = -1.0
-        B = 0.0
-        n = len(cases)
-        lr = 0.01
-
-        for _ in range(2000):
-            dA = 0.0
-            dB = 0.0
-            for case in cases:
-                p   = _sigmoid(A * case["raw_score"] + B)
-                y   = 1.0 if case["is_repurposed"] else 0.0
-                err = p - y
-                dA += err * case["raw_score"]
-                dB += err
-            A -= lr * dA / n
-            B -= lr * dB / n
-
-        if A > 0:
-            print(f"Warning: fitted A={A:.4f} is positive. Negating.")
-            A = -abs(A)
-
-        print(f"Refitted Platt: A={A:.4f}, B={B:.4f}")
-        print(f"  Calibrated range: [{_sigmoid(A*0+B):.4f}, {_sigmoid(A*1+B):.4f}]")
-        self.A = A
-        self.B = B
-        return self.A, self.B
-
-    def expected_calibration_error(
-        self, raw_scores: List[float], labels: List[bool], n_bins: int = 10
-    ) -> float:
-        cal_scores = self.calibrate_batch(raw_scores)
-        n = len(cal_scores)
+        probs_np  = np.array(probs)
+        labels_np = np.array(labels)
+        n         = len(probs_np)
         if n == 0:
             return 0.0
 
-        bin_size = 1.0 / n_bins
-        ece = 0.0
-        for b in range(n_bins):
-            low  = b * bin_size
-            high = (b + 1) * bin_size
-            in_bin = [
-                (cal_scores[i], labels[i])
-                for i in range(n)
-                if low <= cal_scores[i] < high
-            ]
-            if not in_bin:
+        bins     = np.linspace(0.0, 1.0, n_bins + 1)
+        ece      = 0.0
+        for i in range(n_bins):
+            mask = (probs_np > bins[i]) & (probs_np <= bins[i + 1])
+            if mask.sum() == 0:
                 continue
-            avg_confidence = sum(p for p, _ in in_bin) / len(in_bin)
-            avg_accuracy   = sum(1.0 for _, y in in_bin if y) / len(in_bin)
-            ece += (len(in_bin) / n) * abs(avg_confidence - avg_accuracy)
+            bin_acc  = labels_np[mask].mean()
+            bin_conf = probs_np[mask].mean()
+            ece     += (mask.sum() / n) * abs(bin_acc - bin_conf)
 
-        return round(ece, 4)
+        return round(float(ece), 6)
 
-    def calibration_summary(self) -> Dict:
-        """Return a complete summary for paper reporting."""
-        raw_thresh = self.raw_threshold()
-        params_source = (
-            str(_PARAMS_FILE.resolve())
-            if _PARAMS_FILE.exists()
-            else "fallback_hardcoded_defaults"
+    def compute_brier_score(
+        self, probs: List[float], labels: List[int]
+    ) -> float:
+        """Brier score (MSE of probability predictions; 0 is perfect)."""
+        return round(float(brier_score_loss(labels, probs)), 6)
+
+    def compute_auroc(
+        self, scores: List[float], labels: List[int]
+    ) -> float:
+        """Area under the ROC curve."""
+        if len(set(labels)) < 2:
+            return float("nan")
+        return round(float(roc_auc_score(labels, scores)), 6)
+
+    def compute_auprc(
+        self, scores: List[float], labels: List[int]
+    ) -> float:
+        """Area under the Precision-Recall curve."""
+        if len(set(labels)) < 2:
+            return float("nan")
+        return round(float(average_precision_score(labels, scores)), 6)
+
+    def find_optimal_threshold(
+        self,
+        probs:   List[float],
+        labels:  List[int],
+        method:  str = "youden",
+    ) -> Tuple[float, Dict]:
+        """
+        Find the decision threshold that optimises sensitivity + specificity.
+
+        Parameters
+        ----------
+        probs  : calibrated probabilities
+        labels : binary labels
+        method : "youden" (J = sens + spec - 1) or "f1"
+
+        Returns
+        -------
+        (optimal_threshold, metrics_at_threshold)
+        """
+        probs_np  = np.array(probs)
+        labels_np = np.array(labels)
+        thresholds = np.linspace(0.05, 0.95, 91)
+
+        best_score     = -1.0
+        best_threshold = 0.5
+        best_metrics   = {}
+
+        for thresh in thresholds:
+            preds = (probs_np >= thresh).astype(int)
+            tp    = int(((preds == 1) & (labels_np == 1)).sum())
+            tn    = int(((preds == 0) & (labels_np == 0)).sum())
+            fp    = int(((preds == 1) & (labels_np == 0)).sum())
+            fn    = int(((preds == 0) & (labels_np == 1)).sum())
+
+            sens = tp / max(tp + fn, 1)
+            spec = tn / max(tn + fp, 1)
+            prec = tp / max(tp + fp, 1)
+            f1   = 2 * prec * sens / max(prec + sens, 1e-8)
+
+            score = (sens + spec - 1.0) if method == "youden" else f1
+
+            if score > best_score:
+                best_score     = score
+                best_threshold = float(thresh)
+                best_metrics   = {
+                    "threshold":   round(float(thresh), 3),
+                    "sensitivity": round(sens, 4),
+                    "specificity": round(spec, 4),
+                    "precision":   round(prec, 4),
+                    "f1":          round(f1, 4),
+                    "tp": tp, "tn": tn, "fp": fp, "fn": fn,
+                }
+
+        logger.info(
+            f"Optimal threshold ({method}): {best_threshold:.2f} → "
+            f"sens={best_metrics.get('sensitivity',0):.2f}, "
+            f"spec={best_metrics.get('specificity',0):.2f}"
         )
-        return {
-            "A": self.A,
-            "B": self.B,
-            "params_source": params_source,
-            "ece_v4": 0.0182,
-            "cal_range": {
-                "at_raw_0": round(self._cal_at_zero, 4),
-                "at_raw_1": round(self._cal_at_one, 4),
-            },
-            "calibrated_threshold_raw_equivalent": round(raw_thresh, 4),
-            "calibrated_threshold_reachable": raw_thresh <= 1.0,
-            "practical_raw_threshold": PRACTICAL_RAW_THRESHOLD,
-            "use_for_classification": "classify_raw()",
-            "use_for_ranking": "calibrate()",
-            "paper_note": CALIBRATION_NOTE,
-            "dataset_version": "v4.0 (25 TP + 30 TN = 55 cases)",
+        return best_threshold, best_metrics
+
+    def generate_reliability_diagram_data(
+        self,
+        probs:  List[float],
+        labels: List[int],
+        n_bins: int = 10,
+    ) -> List[Dict]:
+        """
+        Generate data for a reliability (calibration) diagram.
+        Returns list of {bin_lower, bin_upper, mean_predicted, fraction_positive, n}
+
+        Use this for Figure X in your methods paper.
+        """
+        probs_np  = np.array(probs)
+        labels_np = np.array(labels)
+        bins      = np.linspace(0.0, 1.0, n_bins + 1)
+        result    = []
+
+        for i in range(n_bins):
+            mask = (probs_np > bins[i]) & (probs_np <= bins[i + 1])
+            n    = int(mask.sum())
+            if n == 0:
+                result.append({
+                    "bin_lower": round(bins[i], 2),
+                    "bin_upper": round(bins[i + 1], 2),
+                    "mean_predicted":     None,
+                    "fraction_positive":  None,
+                    "n": 0,
+                })
+                continue
+            result.append({
+                "bin_lower":          round(float(bins[i]), 2),
+                "bin_upper":          round(float(bins[i + 1]), 2),
+                "mean_predicted":     round(float(probs_np[mask].mean()), 4),
+                "fraction_positive":  round(float(labels_np[mask].mean()), 4),
+                "n": n,
+            })
+
+        return result
+
+    # ── Full summary ──────────────────────────────────────────────────────────
+
+    def calibration_summary(
+        self,
+        raw_scores:   List[float],
+        labels:       List[int],
+        name:         str = "validation_set",
+    ) -> Dict:
+        """
+        Compute a full calibration summary for a validation set.
+
+        This is the primary output used in the methods paper metrics table.
+        All values are computed dynamically from the provided scores and labels —
+        no hardcoded constants.
+
+        Parameters
+        ----------
+        raw_scores : list of float
+            Raw composite scores from the pipeline.
+        labels : list of int
+            1=known positive (TP), 0=known negative (TN).
+        name : str
+            Label for this validation set (for logging).
+
+        Returns
+        -------
+        summary : dict with all calibration metrics
+        """
+        if not self._fitted:
+            logger.warning(
+                f"⚠️  calibration_summary called on unfitted calibrator. "
+                f"Metrics will be computed on raw scores (uncalibrated). "
+                f"Run fit() first for calibrated probabilities."
+            )
+            cal_probs = raw_scores
+            calibrated = False
+        else:
+            cal_probs  = self.transform_batch(raw_scores)
+            calibrated = True
+
+        n_pos  = sum(labels)
+        n_neg  = len(labels) - n_pos
+        n_tot  = len(labels)
+
+        auroc  = self.compute_auroc(raw_scores, labels)
+        auprc  = self.compute_auprc(raw_scores, labels)
+        brier  = self.compute_brier_score(cal_probs, labels)
+        ece    = self.compute_ece(cal_probs, labels)
+
+        optimal_thresh, thresh_metrics = self.find_optimal_threshold(
+            cal_probs, labels, method="youden"
+        )
+
+        # Pass/fail thresholds (from validation spec)
+        pass_fail = {
+            "auroc_pass":      auroc >= 0.70 if not math.isnan(auroc) else None,
+            "sensitivity_pass":thresh_metrics.get("sensitivity", 0) >= 0.65,
+            "specificity_pass":thresh_metrics.get("specificity", 0) >= 0.75,
+            "ece_pass":        ece < 0.15,
+            "brier_pass":      brier < 0.25,
         }
 
+        if self._fitted and self.method == "platt":
+            calibration_params = {
+                "method":    "platt",
+                "platt_a":   self._platt_a,
+                "platt_b":   self._platt_b,
+                "note": (
+                    "A < 0 indicates well-calibrated scores (scores increase "
+                    "monotonically with true positive rate)."
+                ),
+            }
+        elif self._fitted and self.method == "isotonic":
+            calibration_params = {
+                "method":         "isotonic",
+                "n_breakpoints":  (
+                    len(self._isotonic.X_thresholds_)
+                    if self._isotonic else None
+                ),
+            }
+        else:
+            calibration_params = {
+                "method":    "none",
+                "note":      "Calibrator not fitted — using raw scores.",
+            }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Singleton
-# ─────────────────────────────────────────────────────────────────────────────
-_default_calibrator: Optional[ScoreCalibrator] = None
+        summary = {
+            "name":              name,
+            "calibrated":        calibrated,
+            "calibration_method": self.method if calibrated else "none",
+            "run_timestamp":     time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
+            "fit_timestamp":     self._fit_time,
+            "fit_hash":          self._fit_hash,
 
+            "n_total":           n_tot,
+            "n_positive":        n_pos,
+            "n_negative":        n_neg,
+            "prevalence":        round(n_pos / max(n_tot, 1), 4),
 
-def get_calibrator() -> ScoreCalibrator:
-    global _default_calibrator
-    if _default_calibrator is None:
-        _default_calibrator = ScoreCalibrator()
-    return _default_calibrator
+            "metrics": {
+                "auroc":         auroc,
+                "auprc":         auprc,
+                "brier_score":   brier,
+                "ece":           ece,  # <-- computed dynamically, never hardcoded
+                "n_ece_bins":    N_CALIBRATION_BINS,
+            },
 
+            "optimal_threshold": optimal_thresh,
+            "metrics_at_threshold": thresh_metrics,
+            "pass_fail":         pass_fail,
+            "all_passed":        all(v for v in pass_fail.values() if v is not None),
 
-def calibrate_score(raw_score: float) -> float:
-    """Convenience: calibrate a single raw score."""
-    return get_calibrator().calibrate(raw_score)
+            "calibration_params": calibration_params,
 
+            "reliability_diagram": self.generate_reliability_diagram_data(
+                cal_probs, labels
+            ),
+        }
 
-def classify_score(raw_score: float) -> bool:
-    """Convenience: classify using practical raw-score threshold (0.20)."""
-    return get_calibrator().classify_raw(raw_score)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _run_test():
-    cal = ScoreCalibrator()
-    summary = cal.calibration_summary()
-
-    print("\n" + "=" * 70)
-    print("CALIBRATION MODULE v4.2 — VERIFICATION")
-    print("=" * 70)
-    print(f"  A = {cal.A}  (NEGATIVE — correct: higher raw → higher prob)")
-    print(f"  B = {cal.B}  (CAN be negative — valid fitted intercept)")
-    print(f"  Params source: {summary['params_source']}")
-    print(f"  Dataset: {summary['dataset_version']}")
-    print(f"  ECE (v4.0): {summary['ece_v4']} (excellent)")
-    print(f"  Calibrated range: [{summary['cal_range']['at_raw_0']}, "
-          f"{summary['cal_range']['at_raw_1']}]")
-    print(f"  Calibrated threshold (0.50) raw equivalent: "
-          f"{summary['calibrated_threshold_raw_equivalent']}")
-    if not summary["calibrated_threshold_reachable"]:
-        print(f"  ⚠ Calibrated threshold UNREACHABLE (>1.0).")
-        print(f"  → Use raw_score >= {PRACTICAL_RAW_THRESHOLD} for classification.")
-    print("=" * 70)
-    print(f"{'Raw score':>12} | {'Calibrated P':>14} | {'Class':>16}")
-    print("-" * 50)
-    for row in cal.calibration_table():
-        print(
-            f"{row['raw_score']:12.2f} | "
-            f"{row['calibrated_prob']:14.4f} | "
-            f"{row['predicted_class']:>16}"
+        # Log pass/fail
+        status = "✅ PASS" if summary["all_passed"] else "❌ FAIL"
+        logger.info(
+            f"{status} Calibration summary [{name}]: "
+            f"AUROC={auroc:.3f}, "
+            f"sens={thresh_metrics.get('sensitivity',0):.3f}, "
+            f"spec={thresh_metrics.get('specificity',0):.3f}, "
+            f"ECE={ece:.4f} (computed from {n_tot} samples)"
         )
-    print("\n" + "=" * 70)
-    print("PAPER NOTE:")
-    print(CALIBRATION_NOTE)
-    print("=" * 70)
+
+        return summary
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--test", action="store_true")
-    args = parser.parse_args()
-    if args.test:
-        _run_test()
-    else:
-        parser.print_help()
+# ─────────────────────────────────────────────────────────────────────────────
+# Module-level convenience functions
+# ─────────────────────────────────────────────────────────────────────────────
+
+def load_calibrator(method: str = "platt") -> ScoreCalibrator:
+    """
+    Load a calibrator, auto-loading saved params if available.
+    Use this as the default entry point in the pipeline.
+    """
+    return ScoreCalibrator(method=method)
+
+
+def calibrate_scores(
+    raw_scores: List[float],
+    labels:     List[int],
+    method:     str = "platt",
+) -> Tuple[List[float], Dict]:
+    """
+    One-shot: fit calibrator and transform scores.
+
+    Returns
+    -------
+    (calibrated_probs, calibration_summary)
+    """
+    cal = ScoreCalibrator(method=method)
+    cal.fit(raw_scores, labels)
+    cal_probs = cal.transform_batch(raw_scores)
+    summary   = cal.calibration_summary(raw_scores, labels)
+    return cal_probs, summary
