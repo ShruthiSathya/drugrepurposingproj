@@ -1,0 +1,741 @@
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap');
+
+
+
+* {
+
+  margin: 0;
+
+  padding: 0;
+
+  box-sizing: border-box;
+
+}
+
+
+
+body {
+
+  font-family: 'Courier Prime', 'Courier New', monospace;
+
+  background: #f5f5f0;
+
+  color: #000;
+
+}
+
+
+
+/* Graph Paper Background */
+
+.graph-paper-bg {
+
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 0;
+
+  background-color: #f5f5f0;
+
+  background-image: 
+
+    linear-gradient(to right, #d0d0c8 1px, transparent 1px),
+
+    linear-gradient(to bottom, #d0d0c8 1px, transparent 1px),
+
+    linear-gradient(to right, #a0a098 2px, transparent 2px),
+
+    linear-gradient(to bottom, #a0a098 2px, transparent 2px);
+
+  background-size: 
+
+    20px 20px,
+
+    20px 20px,
+
+    100px 100px,
+
+    100px 100px;
+
+  background-position: 
+
+    -1px -1px,
+
+    -1px -1px,
+
+    -2px -2px,
+
+    -2px -2px;
+
+}
+
+
+
+.container {
+
+  position: relative;
+
+  z-index: 10;
+
+}
+
+
+
+/* Terminal Window */
+
+.terminal-window {
+
+  background: #fff;
+
+  border: 4px solid #000;
+
+  margin-bottom: 2rem;
+
+  box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 1);
+
+}
+
+
+
+.terminal-header {
+
+  background: #000;
+
+  color: #fff;
+
+  padding: 1rem 1.5rem;
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  font-weight: bold;
+
+  letter-spacing: 0.1em;
+
+}
+
+
+
+.terminal-body {
+
+  padding: 2rem;
+
+  background: #fff;
+
+}
+
+
+
+/* Input Styles */
+
+.terminal-input {
+
+  width: 100%;
+
+  padding: 0.75rem 1rem;
+
+  border: 3px solid #000;
+
+  background: #fff;
+
+  color: #000;
+
+  font-family: 'Courier Prime', monospace;
+
+  font-size: 1rem;
+
+  font-weight: 600;
+
+  transition: all 0.2s;
+
+}
+
+
+
+.terminal-input:focus {
+
+  outline: none;
+
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.1);
+
+}
+
+
+
+.terminal-input::placeholder {
+
+  color: #666;
+
+}
+
+
+
+/* Button */
+
+.terminal-button {
+
+  width: 100%;
+
+  padding: 1rem 2rem;
+
+  background: #000;
+
+  color: #fff;
+
+  border: 3px solid #000;
+
+  font-family: 'Courier Prime', monospace;
+
+  font-weight: bold;
+
+  font-size: 1rem;
+
+  cursor: pointer;
+
+  letter-spacing: 0.1em;
+
+  transition: all 0.2s;
+
+  margin-top: 1rem;
+
+}
+
+
+
+.terminal-button:hover:not(:disabled) {
+
+  background: #333;
+
+  transform: translate(2px, 2px);
+
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+
+}
+
+
+
+.terminal-button:disabled {
+
+  background: #ccc;
+
+  color: #666;
+
+  cursor: not-allowed;
+
+  border-color: #999;
+
+}
+
+
+
+/* Glitch Text Effect */
+
+.glitch-text {
+
+  position: relative;
+
+  font-family: 'Courier Prime', monospace;
+
+  font-weight: 900;
+
+  letter-spacing: 0.05em;
+
+}
+
+
+
+/* Status Indicator */
+
+.status-indicator {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 0.5rem;
+
+  padding: 0.5rem 1rem;
+
+  border: 2px solid #000;
+
+  background: #fff;
+
+}
+
+
+
+.status-dot {
+
+  width: 10px;
+
+  height: 10px;
+
+  background: #000;
+
+  border-radius: 50%;
+
+  animation: pulse 2s ease-in-out infinite;
+
+}
+
+
+
+@keyframes pulse {
+
+  0%, 100% { opacity: 1; }
+
+  50% { opacity: 0.3; }
+
+}
+
+
+
+/* Stat Cards */
+
+.stat-card {
+
+  border: 3px solid #000;
+
+  padding: 1.5rem;
+
+  background: #fff;
+
+  text-align: center;
+
+}
+
+
+
+.stat-label {
+
+  font-size: 0.75rem;
+
+  font-weight: bold;
+
+  letter-spacing: 0.1em;
+
+  color: #000;
+
+  margin-bottom: 0.5rem;
+
+}
+
+
+
+.stat-value {
+
+  font-size: 2.5rem;
+
+  font-weight: 900;
+
+  color: #000;
+
+}
+
+
+
+/* Gene Badge */
+
+.gene-badge {
+
+  display: inline-block;
+
+  padding: 0.5rem 1rem;
+
+  background: #fff;
+
+  border: 2px solid #000;
+
+  color: #000;
+
+  font-weight: bold;
+
+  font-size: 0.875rem;
+
+  letter-spacing: 0.05em;
+
+}
+
+
+
+.gene-badge-small {
+
+  display: inline-block;
+
+  padding: 0.25rem 0.75rem;
+
+  background: #f0f0f0;
+
+  border: 1px solid #000;
+
+  color: #000;
+
+  font-weight: bold;
+
+  font-size: 0.75rem;
+
+  letter-spacing: 0.05em;
+
+}
+
+
+
+/* Pathway Badge */
+
+.pathway-badge {
+
+  display: inline-block;
+
+  padding: 0.25rem 0.75rem;
+
+  background: #e0e0e0;
+
+  border: 1px solid #000;
+
+  color: #000;
+
+  font-weight: bold;
+
+  font-size: 0.75rem;
+
+  letter-spacing: 0.05em;
+
+}
+
+
+
+/* Drug Card */
+
+.drug-card {
+
+  padding: 2rem;
+
+  border: 3px solid #000;
+
+  background: #fff;
+
+  margin-bottom: 1.5rem;
+
+  transition: all 0.2s;
+
+}
+
+
+
+.drug-card:hover {
+
+  box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1);
+
+  transform: translate(-2px, -2px);
+
+}
+
+
+
+/* Score Display */
+
+.score-display {
+
+  text-align: center;
+
+  border: 3px solid #000;
+
+  padding: 1rem;
+
+  background: #fff;
+
+  min-width: 150px;
+
+}
+
+
+
+.score-label {
+
+  font-size: 0.75rem;
+
+  font-weight: bold;
+
+  letter-spacing: 0.1em;
+
+  color: #000;
+
+  margin-bottom: 0.5rem;
+
+}
+
+
+
+.score-value {
+
+  font-size: 3rem;
+
+  font-weight: 900;
+
+  color: #000;
+
+}
+
+
+
+/* Metric Box */
+
+.metric-box {
+
+  border: 2px solid #000;
+
+  padding: 1rem;
+
+  background: #f8f8f8;
+
+  text-align: center;
+
+}
+
+
+
+.metric-label {
+
+  font-size: 0.625rem;
+
+  font-weight: bold;
+
+  letter-spacing: 0.1em;
+
+  color: #000;
+
+  margin-bottom: 0.5rem;
+
+}
+
+
+
+.metric-value {
+
+  font-size: 1.5rem;
+
+  font-weight: 900;
+
+  color: #000;
+
+}
+
+
+
+/* Molecule 3D */
+
+.molecule-3d {
+
+  width: 40px;
+
+  height: 40px;
+
+  position: relative;
+
+  transform-style: preserve-3d;
+
+  animation: rotate3d 3s linear infinite;
+
+}
+
+
+
+.molecule-atom {
+
+  position: absolute;
+
+  width: 12px;
+
+  height: 12px;
+
+  background: #000;
+
+  border-radius: 50%;
+
+}
+
+
+
+.molecule-atom:nth-child(1) {
+
+  top: 0;
+
+  left: 14px;
+
+}
+
+
+
+.molecule-atom:nth-child(2) {
+
+  top: 14px;
+
+  left: 0;
+
+  width: 10px;
+
+  height: 10px;
+
+  background: #666;
+
+}
+
+
+
+.molecule-atom:nth-child(3) {
+
+  top: 14px;
+
+  right: 0;
+
+  width: 10px;
+
+  height: 10px;
+
+  background: #666;
+
+}
+
+
+
+@keyframes rotate3d {
+
+  from {
+
+    transform: rotateY(0deg) rotateX(0deg);
+
+  }
+
+  to {
+
+    transform: rotateY(360deg) rotateX(360deg);
+
+  }
+
+}
+
+
+
+/* Loader */
+
+.loader {
+
+  display: inline-block;
+
+  width: 16px;
+
+  height: 16px;
+
+  border: 3px solid #fff;
+
+  border-top-color: transparent;
+
+  border-radius: 50%;
+
+  animation: spin 1s linear infinite;
+
+}
+
+
+
+.loader-small {
+
+  display: inline-block;
+
+  width: 12px;
+
+  height: 12px;
+
+  border: 2px solid #000;
+
+  border-top-color: transparent;
+
+  border-radius: 50%;
+
+  animation: spin 1s linear infinite;
+
+}
+
+
+
+@keyframes spin {
+
+  to {
+
+    transform: rotate(360deg);
+
+  }
+
+}
+
+
+
+/* Badges */
+
+.bg-green-500 {
+
+  background-color: #22c55e !important;
+
+}
+
+
+
+.bg-yellow-500 {
+
+  background-color: #eab308 !important;
+
+}
+
+
+
+.bg-red-500 {
+
+  background-color: #ef4444 !important;
+
+}
+
+
+
+.text-white {
+
+  color: #fff !important;
+
+}
+
+
+
+/* Responsive */
+
+@media (max-width: 768px) {
+
+  .terminal-header {
+
+    flex-direction: column;
+
+    gap: 0.5rem;
+
+    text-align: center;
+
+  }
+
+  
+
+  .stat-value {
+
+    font-size: 2rem;
+
+  }
+
+  
+
+  .score-value {
+
+    font-size: 2rem;
+
+  }
+
+}

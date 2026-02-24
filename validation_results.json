@@ -1,0 +1,2137 @@
+{
+  "header": {
+    "dataset_version": "v4.0",
+    "n_test_cases": 55,
+    "n_positive_cases": 25,
+    "n_negative_cases": 30,
+    "run_timestamp_utc": "2026-02-22T20:17:08.788503+00:00",
+    "elapsed_seconds": 6782.67,
+    "min_score_used": 0.0,
+    "pass_criterion": "rank_ok OR score_ok (v3.1)"
+  },
+  "metrics": {
+    "tp": 24,
+    "fn": 1,
+    "tn": 29,
+    "fp": 1,
+    "sensitivity": 0.96,
+    "specificity": 0.9667,
+    "precision": 0.96,
+    "f1": 0.96,
+    "rank_only_passes": 1,
+    "score_only_passes": 1,
+    "both_criteria_passes": 22
+  },
+  "positive_results": [
+    {
+      "drug": "sildenafil",
+      "disease": "pulmonary arterial hypertension",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4563,
+      "calibrated_score": 0.4787,
+      "rank": 12,
+      "expected_rank_top_n": 35,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.25,
+      "mechanism": "PDE5 inhibition \u2192 cGMP elevation \u2192 vasodilation; shared VEGF/NO pathway genes",
+      "sources": [
+        "PMID:15951850",
+        "PMID:17065669"
+      ],
+      "notes": "FDA-approved for PAH."
+    },
+    {
+      "drug": "metformin",
+      "disease": "type 2 diabetes mellitus",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4169,
+      "calibrated_score": 0.4789,
+      "rank": 2,
+      "expected_rank_top_n": 50,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.18,
+      "mechanism": "AMPK activation \u2192 glucose uptake; primary indication",
+      "sources": [
+        "PMID:9742976"
+      ],
+      "notes": "Primary indication. Used as positive control."
+    },
+    {
+      "drug": "metformin",
+      "disease": "polycystic ovary syndrome",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1425,
+      "calibrated_score": 0.48,
+      "rank": 197,
+      "expected_rank_top_n": 260,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.06,
+      "mechanism": "Insulin sensitisation; shared INSR/AMPK pathway genes",
+      "sources": [
+        "PMID:12849456",
+        "PMID:23044908"
+      ],
+      "notes": "Off-label use supported by RCTs."
+    },
+    {
+      "drug": "thalidomide",
+      "disease": "multiple myeloma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6706,
+      "calibrated_score": 0.4779,
+      "rank": 2,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "Anti-angiogenic; TNF-alpha suppression; shared VEGF/IKZF pathway",
+      "sources": [
+        "PMID:10432031"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "imatinib",
+      "disease": "chronic myelogenous leukemia",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.9115,
+      "calibrated_score": 0.4769,
+      "rank": 1,
+      "expected_rank_top_n": 5,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.65,
+      "mechanism": "BCR-ABL1 kinase inhibition; primary indication",
+      "sources": [
+        "PMID:11287977"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "imatinib",
+      "disease": "gastrointestinal stromal tumor",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6619,
+      "calibrated_score": 0.4779,
+      "rank": 4,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "KIT/PDGFRA inhibition; shared kinase pathway with CML",
+      "sources": [
+        "PMID:11547741"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "letrozole",
+      "disease": "breast cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6703,
+      "calibrated_score": 0.4779,
+      "rank": 5,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.5,
+      "mechanism": "Aromatase (CYP19A1) inhibition \u2192 estrogen reduction",
+      "sources": [
+        "PMID:9470415"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "olaparib",
+      "disease": "ovarian cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.7827,
+      "calibrated_score": 0.4774,
+      "rank": 1,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.55,
+      "mechanism": "PARP1/2 inhibition \u2192 synthetic lethality in BRCA1/2-mutant cells",
+      "sources": [
+        "PMID:24882576"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "nivolumab",
+      "disease": "non-small cell lung carcinoma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6421,
+      "calibrated_score": 0.478,
+      "rank": 4,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1/CD274 pathway",
+      "sources": [
+        "PMID:25359623"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "pembrolizumab",
+      "disease": "melanoma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4845,
+      "calibrated_score": 0.4786,
+      "rank": 21,
+      "expected_rank_top_n": 35,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.3,
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1/CD274/TMB pathway",
+      "sources": [
+        "PMID:25265492"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "aspirin",
+      "disease": "colorectal cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2988,
+      "calibrated_score": 0.4794,
+      "rank": 65,
+      "expected_rank_top_n": 150,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.1,
+      "mechanism": "COX-2/PTGS2 inhibition \u2192 prostaglandin reduction \u2192 anti-proliferative",
+      "sources": [
+        "PMID:21562262",
+        "PMID:26222032"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "rituximab",
+      "disease": "rheumatoid arthritis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4297,
+      "calibrated_score": 0.4788,
+      "rank": 2,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.4,
+      "mechanism": "CD20+ B-cell depletion; shared inflammatory pathway genes",
+      "sources": [
+        "PMID:15022347"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "hydroxychloroquine",
+      "disease": "systemic lupus erythematosus",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2709,
+      "calibrated_score": 0.4795,
+      "rank": 1,
+      "expected_rank_top_n": 25,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.05,
+      "mechanism": "TLR9 inhibition, autophagy modulation; shared interferonopathy pathway",
+      "sources": [
+        "PMID:14693966"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "gabapentin",
+      "disease": "epilepsy",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.3959,
+      "calibrated_score": 0.479,
+      "rank": 45,
+      "expected_rank_top_n": 120,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.18,
+      "mechanism": "CACNA2D1 subunit inhibition \u2192 reduced calcium influx",
+      "sources": [
+        "PMID:8602533"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "finasteride",
+      "disease": "benign prostatic hyperplasia",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.455,
+      "calibrated_score": 0.4787,
+      "rank": 2,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.35,
+      "mechanism": "5-alpha-reductase inhibition; shared SRD5A1/SRD5A2 pathway",
+      "sources": [
+        "PMID:1279543"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "colchicine",
+      "disease": "gout",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4232,
+      "calibrated_score": 0.4789,
+      "rank": 2,
+      "expected_rank_top_n": 100,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Microtubule polymerisation inhibition; primary indication",
+      "sources": [
+        "PMID:19252078"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "colchicine",
+      "disease": "pericarditis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.3483,
+      "calibrated_score": 0.4792,
+      "rank": 1,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.1,
+      "mechanism": "NLRP3 inflammasome inhibition; shared IL1B pathway genes",
+      "sources": [
+        "PMID:23992557"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "lenalidomide",
+      "disease": "multiple myeloma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.7044,
+      "calibrated_score": 0.4777,
+      "rank": 1,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "IKZF1/IKZF3 degradation via CRBN; immunomodulatory",
+      "sources": [
+        "PMID:24382584"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "propranolol",
+      "disease": "infantile hemangioma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0657,
+      "calibrated_score": 0.4803,
+      "rank": 1365,
+      "expected_rank_top_n": 500,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.0,
+      "mechanism": "Beta-adrenergic blockade \u2192 anti-angiogenic; VEGF pathway shared",
+      "sources": [
+        "PMID:18940929"
+      ],
+      "notes": "Known FN pattern: drug_not_found in standard scoring."
+    },
+    {
+      "drug": "sirolimus",
+      "disease": "tuberous sclerosis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.304,
+      "calibrated_score": 0.4793,
+      "rank": 52,
+      "expected_rank_top_n": 75,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.1,
+      "mechanism": "mTOR pathway inhibition; TSC1/TSC2 direct targets",
+      "sources": [
+        "PMID:23561269"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "eculizumab",
+      "disease": "paroxysmal nocturnal hemoglobinuria",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1649,
+      "calibrated_score": 0.4799,
+      "rank": 2,
+      "expected_rank_top_n": 5,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.04,
+      "mechanism": "C5 complement inhibition; shared complement pathway genes",
+      "sources": [
+        "PMID:18768943"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "ivacaftor",
+      "disease": "cystic fibrosis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.3426,
+      "calibrated_score": 0.4792,
+      "rank": 2,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "score_pass": false,
+      "pass": true,
+      "min_score_threshold": 0.35,
+      "mechanism": "CFTR potentiation; direct CFTR shared gene",
+      "sources": [
+        "PMID:23989293"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "nusinersen",
+      "disease": "spinal muscular atrophy",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.0,
+      "mechanism": "Antisense oligonucleotide promoting SMN2 exon 7 inclusion",
+      "sources": [
+        "PMID:28056917"
+      ],
+      "notes": "KNOWN LIMITATION: max_phase=3, not in ChEMBL approved pool. drug_not_found expected. Case documents ASO coverage gap."
+    },
+    {
+      "drug": "ezetimibe",
+      "disease": "hypercholesterolemia",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2075,
+      "calibrated_score": 0.4797,
+      "rank": 33,
+      "expected_rank_top_n": 250,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.02,
+      "mechanism": "NPC1L1 inhibition \u2192 reduced cholesterol absorption",
+      "sources": [
+        "PMID:14523140"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "empagliflozin",
+      "disease": "heart failure",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1858,
+      "calibrated_score": 0.4798,
+      "rank": 191,
+      "expected_rank_top_n": 500,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.02,
+      "mechanism": "SGLT2 inhibition \u2192 diuresis, cardiac preload reduction",
+      "sources": [
+        "PMID:33093160"
+      ],
+      "notes": ""
+    }
+  ],
+  "negative_results": [
+    {
+      "drug": "insulin glargine",
+      "disease": "multiple sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0587,
+      "calibrated_score": 0.4803,
+      "rank": 1631,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "No known mechanistic link. MS is autoimmune/neurological; insulin targets INSR in metabolic context.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "warfarin",
+      "disease": "Parkinson disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0957,
+      "calibrated_score": 0.4802,
+      "rank": 399,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Anticoagulant targeting VKORC1/CYP2C9; no PD neurodegeneration link.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "omeprazole",
+      "disease": "schizophrenia",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0663,
+      "calibrated_score": 0.4803,
+      "rank": 934,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "PPI (H+/K+ ATPase inhibitor); no dopamine/glutamate overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "atorvastatin",
+      "disease": "hemophilia A",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": 2434,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "HMGCR inhibitor in cholesterol metabolism; hemophilia A is monogenic F8 deficiency \u2014 no pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "lisinopril",
+      "disease": "anorexia nervosa",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0564,
+      "calibrated_score": 0.4803,
+      "rank": 1397,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "ACE inhibitor; no known eating disorder pathway connection.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "levothyroxine",
+      "disease": "inflammatory bowel disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.1928,
+      "calibrated_score": 0.4798,
+      "rank": 113,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Thyroid hormone replacement. No IBD mechanistic link.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "amoxicillin",
+      "disease": "hypertrophic cardiomyopathy",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.03,
+      "calibrated_score": 0.4804,
+      "rank": 2294,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Beta-lactam antibiotic. HCM is a genetic sarcomere disorder.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "donepezil",
+      "disease": "amyotrophic lateral sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0865,
+      "calibrated_score": 0.4802,
+      "rank": 269,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "AChE inhibitor; ALS is TDP-43/SOD1 motor neuron degeneration, not cholinergic deficit. Tests cross-disease neurological over-generalisation.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "fluconazole",
+      "disease": "Alzheimer disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0723,
+      "calibrated_score": 0.4803,
+      "rank": 520,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Azole antifungal (CYP51 inhibitor). No neurodegeneration pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Tests antifungal vs neurological disease specificity."
+    },
+    {
+      "drug": "ciprofloxacin",
+      "disease": "multiple myeloma",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0668,
+      "calibrated_score": 0.4803,
+      "rank": 1210,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Fluoroquinolone antibiotic (DNA gyrase inhibitor). No IKZF/CRBN/VEGF pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "metronidazole",
+      "disease": "Parkinson disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0666,
+      "calibrated_score": 0.4803,
+      "rank": 924,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Antiprotozoal/antibiotic. No dopamine/alpha-synuclein pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "azithromycin",
+      "disease": "breast cancer",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": 2298,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Macrolide antibiotic. No ESR1/ERBB2/BRCA pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Tests antibiotics vs oncology specificity."
+    },
+    {
+      "drug": "glipizide",
+      "disease": "rheumatoid arthritis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0614,
+      "calibrated_score": 0.4803,
+      "rank": 1094,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Sulfonylurea (KATP channel closer). No TNF/IL6/B-cell pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "sitagliptin",
+      "disease": "epilepsy",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0617,
+      "calibrated_score": 0.4803,
+      "rank": 1062,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "DPP-4 inhibitor for T2DM. No CACNA2D/ion channel pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "canagliflozin",
+      "disease": "ovarian cancer",
+      "status": "true_negative_not_found",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "SGLT2 inhibitor for T2DM. No BRCA/PARP/homologous recombination overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "pioglitazone",
+      "disease": "schizophrenia",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0597,
+      "calibrated_score": 0.4803,
+      "rank": 1363,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "PPAR-gamma agonist for T2DM. No dopamine/glutamate receptor pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "amlodipine",
+      "disease": "multiple myeloma",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0609,
+      "calibrated_score": 0.4803,
+      "rank": 1850,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Dihydropyridine calcium channel blocker. No CRBN/IKZF/myeloma pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "digoxin",
+      "disease": "cystic fibrosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.1488,
+      "calibrated_score": 0.48,
+      "rank": 70,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Cardiac glycoside (Na+/K+ ATPase inhibitor). No CFTR channel overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "clopidogrel",
+      "disease": "Alzheimer disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0946,
+      "calibrated_score": 0.4802,
+      "rank": 320,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "P2Y12 antiplatelet agent. No amyloid/tau/cholinergic pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "furosemide",
+      "disease": "rheumatoid arthritis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0703,
+      "calibrated_score": 0.4803,
+      "rank": 593,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Loop diuretic (NKCC2 inhibitor). No TNF/IL6/B-cell pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "sertraline",
+      "disease": "epilepsy",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": 2333,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "SSRI (SLC6A4 inhibitor). No CACNA2D/SCN1A ion channel overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Tests SSRI vs epilepsy gene panel specificity."
+    },
+    {
+      "drug": "lithium",
+      "disease": "cystic fibrosis",
+      "status": "true_negative_not_found",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Mood stabiliser (GSK3B inhibitor). No CFTR channel overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "zolpidem",
+      "disease": "inflammatory bowel disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": 2347,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "GABA-A receptor positive modulator (sedative-hypnotic). No IBD pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "aripiprazole",
+      "disease": "type 2 diabetes mellitus",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0878,
+      "calibrated_score": 0.4802,
+      "rank": 420,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Partial D2/D3 agonist antipsychotic. No AMPK/INSR/glucose metabolism overlap. Note: atypicals can cause metabolic side effects but this is not a therapeutic repurposing indication.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "tacrolimus",
+      "disease": "chronic myelogenous leukemia",
+      "status": "true_negative_not_found",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Calcineurin inhibitor (FKBP12/calcineurin). No BCR-ABL pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "allopurinol",
+      "disease": "multiple sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0668,
+      "calibrated_score": 0.4803,
+      "rank": 852,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Xanthine oxidase inhibitor for gout. No demyelination/MS pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "etoposide",
+      "disease": "Parkinson disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.1858,
+      "calibrated_score": 0.4798,
+      "rank": 87,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Topoisomerase II inhibitor (chemotherapy). No alpha-synuclein/LRRK2 overlap. Tests that cytotoxic chemotherapy does not score for neurodegeneration.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "cyclosporine",
+      "disease": "gout",
+      "status": "false_positive",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.2502,
+      "calibrated_score": 0.4796,
+      "rank": 71,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.2,
+      "mechanism": "Calcineurin inhibitor (immunosuppressant). No tubulin/NLRP3/urate pathway overlap. Note: cyclosporine can CAUSE hyperuricemia but is not a gout treatment.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Tests that a drug causing a disease symptom is not scored as a treatment."
+    },
+    {
+      "drug": "heparin",
+      "disease": "breast cancer",
+      "status": "true_negative_not_found",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Anticoagulant (antithrombin III activator). No ESR1/ERBB2/BRCA overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "montelukast",
+      "disease": "type 2 diabetes mellitus",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0542,
+      "calibrated_score": 0.4803,
+      "rank": 2069,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Leukotriene receptor antagonist for asthma. No AMPK/INSR/glucose metabolism overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    }
+  ],
+  "test_cases": [
+    {
+      "drug": "sildenafil",
+      "disease": "pulmonary arterial hypertension",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4563,
+      "calibrated_score": 0.4787,
+      "rank": 12,
+      "expected_rank_top_n": 35,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.25,
+      "mechanism": "PDE5 inhibition \u2192 cGMP elevation \u2192 vasodilation; shared VEGF/NO pathway genes",
+      "sources": [
+        "PMID:15951850",
+        "PMID:17065669"
+      ],
+      "notes": "FDA-approved for PAH."
+    },
+    {
+      "drug": "metformin",
+      "disease": "type 2 diabetes mellitus",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4169,
+      "calibrated_score": 0.4789,
+      "rank": 2,
+      "expected_rank_top_n": 50,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.18,
+      "mechanism": "AMPK activation \u2192 glucose uptake; primary indication",
+      "sources": [
+        "PMID:9742976"
+      ],
+      "notes": "Primary indication. Used as positive control."
+    },
+    {
+      "drug": "metformin",
+      "disease": "polycystic ovary syndrome",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1425,
+      "calibrated_score": 0.48,
+      "rank": 197,
+      "expected_rank_top_n": 260,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.06,
+      "mechanism": "Insulin sensitisation; shared INSR/AMPK pathway genes",
+      "sources": [
+        "PMID:12849456",
+        "PMID:23044908"
+      ],
+      "notes": "Off-label use supported by RCTs."
+    },
+    {
+      "drug": "thalidomide",
+      "disease": "multiple myeloma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6706,
+      "calibrated_score": 0.4779,
+      "rank": 2,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "Anti-angiogenic; TNF-alpha suppression; shared VEGF/IKZF pathway",
+      "sources": [
+        "PMID:10432031"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "imatinib",
+      "disease": "chronic myelogenous leukemia",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.9115,
+      "calibrated_score": 0.4769,
+      "rank": 1,
+      "expected_rank_top_n": 5,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.65,
+      "mechanism": "BCR-ABL1 kinase inhibition; primary indication",
+      "sources": [
+        "PMID:11287977"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "imatinib",
+      "disease": "gastrointestinal stromal tumor",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6619,
+      "calibrated_score": 0.4779,
+      "rank": 4,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "KIT/PDGFRA inhibition; shared kinase pathway with CML",
+      "sources": [
+        "PMID:11547741"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "letrozole",
+      "disease": "breast cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6703,
+      "calibrated_score": 0.4779,
+      "rank": 5,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.5,
+      "mechanism": "Aromatase (CYP19A1) inhibition \u2192 estrogen reduction",
+      "sources": [
+        "PMID:9470415"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "olaparib",
+      "disease": "ovarian cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.7827,
+      "calibrated_score": 0.4774,
+      "rank": 1,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.55,
+      "mechanism": "PARP1/2 inhibition \u2192 synthetic lethality in BRCA1/2-mutant cells",
+      "sources": [
+        "PMID:24882576"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "nivolumab",
+      "disease": "non-small cell lung carcinoma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.6421,
+      "calibrated_score": 0.478,
+      "rank": 4,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1/CD274 pathway",
+      "sources": [
+        "PMID:25359623"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "pembrolizumab",
+      "disease": "melanoma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4845,
+      "calibrated_score": 0.4786,
+      "rank": 21,
+      "expected_rank_top_n": 35,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.3,
+      "mechanism": "PD-1 checkpoint blockade; shared PDCD1/CD274/TMB pathway",
+      "sources": [
+        "PMID:25265492"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "aspirin",
+      "disease": "colorectal cancer",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2988,
+      "calibrated_score": 0.4794,
+      "rank": 65,
+      "expected_rank_top_n": 150,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.1,
+      "mechanism": "COX-2/PTGS2 inhibition \u2192 prostaglandin reduction \u2192 anti-proliferative",
+      "sources": [
+        "PMID:21562262",
+        "PMID:26222032"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "rituximab",
+      "disease": "rheumatoid arthritis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4297,
+      "calibrated_score": 0.4788,
+      "rank": 2,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.4,
+      "mechanism": "CD20+ B-cell depletion; shared inflammatory pathway genes",
+      "sources": [
+        "PMID:15022347"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "hydroxychloroquine",
+      "disease": "systemic lupus erythematosus",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2709,
+      "calibrated_score": 0.4795,
+      "rank": 1,
+      "expected_rank_top_n": 25,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.05,
+      "mechanism": "TLR9 inhibition, autophagy modulation; shared interferonopathy pathway",
+      "sources": [
+        "PMID:14693966"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "gabapentin",
+      "disease": "epilepsy",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.3959,
+      "calibrated_score": 0.479,
+      "rank": 45,
+      "expected_rank_top_n": 120,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.18,
+      "mechanism": "CACNA2D1 subunit inhibition \u2192 reduced calcium influx",
+      "sources": [
+        "PMID:8602533"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "finasteride",
+      "disease": "benign prostatic hyperplasia",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.455,
+      "calibrated_score": 0.4787,
+      "rank": 2,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.35,
+      "mechanism": "5-alpha-reductase inhibition; shared SRD5A1/SRD5A2 pathway",
+      "sources": [
+        "PMID:1279543"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "colchicine",
+      "disease": "gout",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.4232,
+      "calibrated_score": 0.4789,
+      "rank": 2,
+      "expected_rank_top_n": 100,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Microtubule polymerisation inhibition; primary indication",
+      "sources": [
+        "PMID:19252078"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "colchicine",
+      "disease": "pericarditis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.3483,
+      "calibrated_score": 0.4792,
+      "rank": 1,
+      "expected_rank_top_n": 20,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.1,
+      "mechanism": "NLRP3 inflammasome inhibition; shared IL1B pathway genes",
+      "sources": [
+        "PMID:23992557"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "lenalidomide",
+      "disease": "multiple myeloma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.7044,
+      "calibrated_score": 0.4777,
+      "rank": 1,
+      "expected_rank_top_n": 15,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.45,
+      "mechanism": "IKZF1/IKZF3 degradation via CRBN; immunomodulatory",
+      "sources": [
+        "PMID:24382584"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "propranolol",
+      "disease": "infantile hemangioma",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0657,
+      "calibrated_score": 0.4803,
+      "rank": 1365,
+      "expected_rank_top_n": 500,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.0,
+      "mechanism": "Beta-adrenergic blockade \u2192 anti-angiogenic; VEGF pathway shared",
+      "sources": [
+        "PMID:18940929"
+      ],
+      "notes": "Known FN pattern: drug_not_found in standard scoring."
+    },
+    {
+      "drug": "sirolimus",
+      "disease": "tuberous sclerosis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.304,
+      "calibrated_score": 0.4793,
+      "rank": 52,
+      "expected_rank_top_n": 75,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.1,
+      "mechanism": "mTOR pathway inhibition; TSC1/TSC2 direct targets",
+      "sources": [
+        "PMID:23561269"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "eculizumab",
+      "disease": "paroxysmal nocturnal hemoglobinuria",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1649,
+      "calibrated_score": 0.4799,
+      "rank": 2,
+      "expected_rank_top_n": 5,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.04,
+      "mechanism": "C5 complement inhibition; shared complement pathway genes",
+      "sources": [
+        "PMID:18768943"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "ivacaftor",
+      "disease": "cystic fibrosis",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.3426,
+      "calibrated_score": 0.4792,
+      "rank": 2,
+      "expected_rank_top_n": 10,
+      "rank_pass": true,
+      "score_pass": false,
+      "pass": true,
+      "min_score_threshold": 0.35,
+      "mechanism": "CFTR potentiation; direct CFTR shared gene",
+      "sources": [
+        "PMID:23989293"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "nusinersen",
+      "disease": "spinal muscular atrophy",
+      "status": "false_negative",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.0,
+      "mechanism": "Antisense oligonucleotide promoting SMN2 exon 7 inclusion",
+      "sources": [
+        "PMID:28056917"
+      ],
+      "notes": "KNOWN LIMITATION: max_phase=3, not in ChEMBL approved pool. drug_not_found expected. Case documents ASO coverage gap."
+    },
+    {
+      "drug": "ezetimibe",
+      "disease": "hypercholesterolemia",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.2075,
+      "calibrated_score": 0.4797,
+      "rank": 33,
+      "expected_rank_top_n": 250,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.02,
+      "mechanism": "NPC1L1 inhibition \u2192 reduced cholesterol absorption",
+      "sources": [
+        "PMID:14523140"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "empagliflozin",
+      "disease": "heart failure",
+      "status": "found",
+      "expected_status": "TRUE_POSITIVE",
+      "raw_score": 0.1858,
+      "calibrated_score": 0.4798,
+      "rank": 191,
+      "expected_rank_top_n": 500,
+      "rank_pass": true,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.02,
+      "mechanism": "SGLT2 inhibition \u2192 diuresis, cardiac preload reduction",
+      "sources": [
+        "PMID:33093160"
+      ],
+      "notes": ""
+    }
+  ],
+  "negative_cases": [
+    {
+      "drug": "insulin glargine",
+      "disease": "multiple sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0587,
+      "calibrated_score": 0.4803,
+      "rank": 1631,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "No known mechanistic link. MS is autoimmune/neurological; insulin targets INSR in metabolic context.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Should score very low."
+    },
+    {
+      "drug": "warfarin",
+      "disease": "Parkinson disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0957,
+      "calibrated_score": 0.4802,
+      "rank": 399,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Anticoagulant targeting VKORC1/CYP2C9; no PD neurodegeneration link.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "omeprazole",
+      "disease": "schizophrenia",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0663,
+      "calibrated_score": 0.4803,
+      "rank": 934,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "PPI (H+/K+ ATPase inhibitor); no dopamine/glutamate overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "atorvastatin",
+      "disease": "hemophilia A",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": 2434,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "HMGCR inhibitor in cholesterol metabolism; hemophilia A is monogenic F8 deficiency \u2014 no pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "lisinopril",
+      "disease": "anorexia nervosa",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0564,
+      "calibrated_score": 0.4803,
+      "rank": 1397,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "ACE inhibitor; no known eating disorder pathway connection.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "levothyroxine",
+      "disease": "inflammatory bowel disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.1928,
+      "calibrated_score": 0.4798,
+      "rank": 113,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Thyroid hormone replacement. No IBD mechanistic link.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "amoxicillin",
+      "disease": "hypertrophic cardiomyopathy",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.03,
+      "calibrated_score": 0.4804,
+      "rank": 2294,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Beta-lactam antibiotic. HCM is a genetic sarcomere disorder.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "donepezil",
+      "disease": "amyotrophic lateral sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0865,
+      "calibrated_score": 0.4802,
+      "rank": 269,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "AChE inhibitor; ALS is TDP-43/SOD1 motor neuron degeneration, not cholinergic deficit. Tests cross-disease neurological over-generalisation.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "fluconazole",
+      "disease": "Alzheimer disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0723,
+      "calibrated_score": 0.4803,
+      "rank": 520,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Azole antifungal (CYP51 inhibitor). No neurodegeneration pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Tests antifungal vs neurological disease specificity."
+    },
+    {
+      "drug": "ciprofloxacin",
+      "disease": "multiple myeloma",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0668,
+      "calibrated_score": 0.4803,
+      "rank": 1210,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Fluoroquinolone antibiotic (DNA gyrase inhibitor). No IKZF/CRBN/VEGF pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "metronidazole",
+      "disease": "Parkinson disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0666,
+      "calibrated_score": 0.4803,
+      "rank": 924,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Antiprotozoal/antibiotic. No dopamine/alpha-synuclein pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "azithromycin",
+      "disease": "breast cancer",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": 2298,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Macrolide antibiotic. No ESR1/ERBB2/BRCA pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Tests antibiotics vs oncology specificity."
+    },
+    {
+      "drug": "glipizide",
+      "disease": "rheumatoid arthritis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0614,
+      "calibrated_score": 0.4803,
+      "rank": 1094,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Sulfonylurea (KATP channel closer). No TNF/IL6/B-cell pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "sitagliptin",
+      "disease": "epilepsy",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0617,
+      "calibrated_score": 0.4803,
+      "rank": 1062,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "DPP-4 inhibitor for T2DM. No CACNA2D/ion channel pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "canagliflozin",
+      "disease": "ovarian cancer",
+      "status": "true_negative_not_found",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "SGLT2 inhibitor for T2DM. No BRCA/PARP/homologous recombination overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "pioglitazone",
+      "disease": "schizophrenia",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0597,
+      "calibrated_score": 0.4803,
+      "rank": 1363,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "PPAR-gamma agonist for T2DM. No dopamine/glutamate receptor pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "amlodipine",
+      "disease": "multiple myeloma",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0609,
+      "calibrated_score": 0.4803,
+      "rank": 1850,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Dihydropyridine calcium channel blocker. No CRBN/IKZF/myeloma pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "digoxin",
+      "disease": "cystic fibrosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.1488,
+      "calibrated_score": 0.48,
+      "rank": 70,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Cardiac glycoside (Na+/K+ ATPase inhibitor). No CFTR channel overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "clopidogrel",
+      "disease": "Alzheimer disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0946,
+      "calibrated_score": 0.4802,
+      "rank": 320,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "P2Y12 antiplatelet agent. No amyloid/tau/cholinergic pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "furosemide",
+      "disease": "rheumatoid arthritis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0703,
+      "calibrated_score": 0.4803,
+      "rank": 593,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Loop diuretic (NKCC2 inhibitor). No TNF/IL6/B-cell pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "sertraline",
+      "disease": "epilepsy",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": 2333,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "SSRI (SLC6A4 inhibitor). No CACNA2D/SCN1A ion channel overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Tests SSRI vs epilepsy gene panel specificity."
+    },
+    {
+      "drug": "lithium",
+      "disease": "cystic fibrosis",
+      "status": "true_negative_not_found",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Mood stabiliser (GSK3B inhibitor). No CFTR channel overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "zolpidem",
+      "disease": "inflammatory bowel disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": 2347,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "GABA-A receptor positive modulator (sedative-hypnotic). No IBD pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "aripiprazole",
+      "disease": "type 2 diabetes mellitus",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0878,
+      "calibrated_score": 0.4802,
+      "rank": 420,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Partial D2/D3 agonist antipsychotic. No AMPK/INSR/glucose metabolism overlap. Note: atypicals can cause metabolic side effects but this is not a therapeutic repurposing indication.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "tacrolimus",
+      "disease": "chronic myelogenous leukemia",
+      "status": "true_negative_not_found",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Calcineurin inhibitor (FKBP12/calcineurin). No BCR-ABL pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "allopurinol",
+      "disease": "multiple sclerosis",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0668,
+      "calibrated_score": 0.4803,
+      "rank": 852,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Xanthine oxidase inhibitor for gout. No demyelination/MS pathway overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "etoposide",
+      "disease": "Parkinson disease",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.1858,
+      "calibrated_score": 0.4798,
+      "rank": 87,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Topoisomerase II inhibitor (chemotherapy). No alpha-synuclein/LRRK2 overlap. Tests that cytotoxic chemotherapy does not score for neurodegeneration.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "cyclosporine",
+      "disease": "gout",
+      "status": "false_positive",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.2502,
+      "calibrated_score": 0.4796,
+      "rank": 71,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": false,
+      "pass": false,
+      "min_score_threshold": 0.2,
+      "mechanism": "Calcineurin inhibitor (immunosuppressant). No tubulin/NLRP3/urate pathway overlap. Note: cyclosporine can CAUSE hyperuricemia but is not a gout treatment.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": "Tests that a drug causing a disease symptom is not scored as a treatment."
+    },
+    {
+      "drug": "heparin",
+      "disease": "breast cancer",
+      "status": "true_negative_not_found",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0,
+      "calibrated_score": 0.4806,
+      "rank": null,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Anticoagulant (antithrombin III activator). No ESR1/ERBB2/BRCA overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    },
+    {
+      "drug": "montelukast",
+      "disease": "type 2 diabetes mellitus",
+      "status": "true_negative_low_score",
+      "expected_status": "TRUE_NEGATIVE",
+      "raw_score": 0.0542,
+      "calibrated_score": 0.4803,
+      "rank": 2069,
+      "expected_rank_top_n": 0,
+      "rank_pass": false,
+      "score_pass": true,
+      "pass": true,
+      "min_score_threshold": 0.2,
+      "mechanism": "Leukotriene receptor antagonist for asthma. No AMPK/INSR/glucose metabolism overlap.",
+      "sources": [
+        "Expert consensus"
+      ],
+      "notes": ""
+    }
+  ],
+  "out_of_scope_cases": [
+    {
+      "drug": "tocilizumab",
+      "disease": "cytokine release syndrome",
+      "reason": "CRS is a syndrome without a stable EFO ontology entry. OpenTargets returns non-deterministic gene sets across API versions. Excluded in v3 for reproducibility.",
+      "version_removed": "v3"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+# Production Requirements for Drug Repurposing Platform
+# All packages are open-source and free to use
+
+# Web Framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# HTTP Client (for API calls) - WITH SSL FIX
+aiohttp==3.10.5
+certifi==2024.8.30  # Up-to-date SSL certificates
+requests==2.31.0
+
+# Data Processing
+pydantic==2.9.2
+python-dotenv==1.0.1
+
+# Graph Analysis
+networkx==3.3
+
+# Database & Caching
+aiosqlite==0.20.0
+sqlalchemy==2.0.23
+
+# Scientific Computing
+numpy==1.26.4
+scipy>=1.14.1
+scikit-learn==1.8.0
+rdkit
+
+# Anthropic API (for AI explanations)
+anthropic==0.40.0
+
+# Rate Limiting & Retry Logic
+tenacity==8.2.3
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.0
+httpx==0.26.0
