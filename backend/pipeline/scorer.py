@@ -1,37 +1,4 @@
-"""
-PRODUCTION DRUG SCORING ENGINE v5
-===================================
-NEW in v5: PPI Network Proximity + Drug-Drug Chemical Similarity
 
-Two new scoring signals:
-  1. PPI network proximity (STRING) — captures indirect target-disease
-     associations via protein-protein interaction network.
-  2. Drug-drug chemical similarity (Tanimoto/ECFP4) — rewards candidates
-     structurally similar to known treatments.
-
-Weight rebalancing (all weights sum to 1.0):
-  v4: gene=0.45, pathway=0.30, mechanism=0.10, literature=0.15
-  v5: gene=0.35, pathway=0.25, ppi=0.20, similarity=0.10,
-      mechanism=0.05, literature=0.05
-
-FIXES vs previous version
---------------------------
-FIX 1: weight_grid_search() removed the unused `pipeline` parameter.
-   The function performs a combinatorial weight grid search and returns
-   the search space metadata — it does not call the pipeline directly.
-   Keeping the parameter was misleading and caused callers to pass None.
-
-FIX 2: sensitivity_analysis() is now explicitly exported at module level
-   so run_validation.py can import it as:
-     from scorer import sensitivity_analysis
-
-References:
-  Cheng F et al. (2018). Network-based prediction of drug combinations.
-    Nature Communications 9:3410. doi:10.1038/s41467-018-05681-7
-  Rogers D, Hahn M (2010). Extended-connectivity fingerprints.
-    J Chem Inf Model 50:742. doi:10.1021/ci100050t
-  Srinivasan P (2004) Text mining. J Am Soc Inf Sci. doi:10.1002/asi.20074
-"""
 
 import itertools
 import logging

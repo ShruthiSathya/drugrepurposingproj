@@ -4,22 +4,6 @@ run_validation.py — Curated Validation Runner
 Runs the production pipeline against the curated 55-case validation dataset
 and writes results to validation_results.json.
 
-FIXES vs previous version
---------------------------
-1. calibrator.transform(score) used correctly (was calibrate_scores(0.0)).
-2. pipeline.close() in try/finally.
-3. use_tissue=False in generate_candidates().
-
-NEW in this version (v4.1)
----------------------------
-4. Baseline comparison integrated: Jaccard, GeneCount, Cosine now run
-   head-to-head and results included in validation_results.json.
-5. sensitivity_analysis() now called and results included in output.
-6. Stratified metrics by disease area added to output.
-7. Data integrity checks added before validation runs.
-8. Pipeline fingerprint (data source versions) recorded in output.
-9. F1 delta vs each baseline for publication table.
-
 Usage
 -----
     python run_validation.py [--min-score 0.0] [--output validation_results.json]

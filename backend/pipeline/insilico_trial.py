@@ -1,18 +1,3 @@
-"""
-insilico_trial.py — AI-Powered Virtual Clinical Trial Simulation v2.1
-======================================================================
-FIX v2.1:
-  - _calculate_network_effect() now incorporates the candidate's composite
-    ML score as a strong prior (60% weight) alongside network topology (40%).
-  - Floor raised from 0.05 → 0.15 so approved drugs always show baseline activity.
-  - Base constant raised from 0.1 → 0.2 for better separation.
-  - composite_score parameter added to _calculate_network_effect().
-  - run_virtual_trial() passes candidate["score"] to network effect calculator.
-
-These fixes resolve ORR=0.0% for all candidates caused by near-zero network
-effects when drug targets don't directly overlap with disease gene sets.
-"""
-
 import asyncio
 import json
 import logging

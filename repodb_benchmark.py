@@ -4,37 +4,6 @@ repodb_benchmark.py — RepoDB Benchmarking Script
 Evaluates the drug repurposing pipeline against the RepoDB gold-standard
 dataset of approved drug-indication pairs.
 
-FIXES vs previous version
---------------------------
-1. Import: ProductionPipeline (canonical name).
-
-2. generate_candidates(): Uses pipeline.generate_candidates() directly.
-
-3. drugs_cache: Fetches approved drugs ONCE and reuses across all diseases.
-
-4. Auto-fetch: fetch_repodb_if_missing() downloads RepoDB CSV from GitHub.
-
-5. Removed unused calibrate_score import.
-
-6. NEW — Disease name normalization (this version):
-   RepoDB uses clinical/lay names ("Abdominal Abscess", "AIDS with Kaposi's
-   sarcoma") that OpenTargets EFO does not recognize. Without normalization,
-   fetch_disease_data() returns None for most diseases → they are silently
-   skipped → only 7/20 diseases found → AUC-ROC=0.46 (below random).
-
-   Fix strategy (three layers, applied in order):
-     (a) REPODB_TO_EFO hardcoded map — covers the most common RepoDB terms
-         that have known EFO equivalents.
-     (b) Text normalization — lowercase, strip possessives, expand common
-         abbreviations ("HIV" → "human immunodeficiency virus", etc.).
-     (c) OpenTargets text-search fallback — if (a) and (b) both fail,
-         queries the OpenTargets /graphql search endpoint and takes the
-         top hit if score > 0.5. Results cached in memory to avoid
-         redundant API calls.
-
-   This brings expected disease match rate from ~35% to ~70-80% of RepoDB
-   diseases, making AUC-ROC a meaningful signal rather than noise from
-   skipped diseases.
 
 RepoDB Reference
 ----------------

@@ -1,24 +1,4 @@
-"""
-false_negative_analysis.py — False Negative Case Investigation
-===============================================================
-This script is Step 4 of validate_all.sh.
 
-Loads validation_results.json and produces a detailed per-case breakdown of
-false negatives (known repurposings that scored below threshold), along with
-recommended investigation steps for each.
-
-CHANGES in this version
-------------------------
-1. Documents the fallback pathway map usage counter requirement: if
-   data_fetcher.py logs fallback usage, those counts are surfaced here
-   in the diagnostics section so it is clear which FN cases may have
-   failed due to missing API data (vs. genuine scoring failure).
-
-Usage
------
-    python false_negative_analysis.py [--input validation_results.json]
-                                       [--output fn_analysis.json]
-"""
 
 import argparse
 import json

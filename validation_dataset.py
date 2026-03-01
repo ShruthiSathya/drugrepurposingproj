@@ -2,33 +2,6 @@
 Curated Validation Dataset — v4.0 (n=55: 25 positive + 30 negative)
 =====================================================================
 
-CHANGE LOG
-----------
-v1 (n=31): Initial dataset.
-v2 (n=34): Added 3 new cases.
-v3 (n=33): Tocilizumab/CRS moved to OUT_OF_SCOPE. n=25 positives + 8 negatives.
-v3.1 (n=33): Threshold recalibration. expected_rank_top_n added.
-
-v4.0 (n=55): NEGATIVE CONTROLS EXPANDED from 8 → 30.
-    Motivation:
-    (1) ECE = 0.2438 in v3.1 was caused by 3:1 TP:TN imbalance (24:8).
-        Expanding to 25:30 (≈1:1.2 ratio) reduces this imbalance and
-        produces more reliable Platt calibration.
-    (2) Reviewers at Bioinformatics / PLOS Comput Biol expect ≥20 negative
-        controls to credibly demonstrate specificity.
-    (3) The 30 negatives span diverse therapeutic areas, mechanisms, and
-        disease types (oncology, CNS, metabolic, rare, infectious) to
-        prevent overfitting specificity to a narrow disease space.
-
-    New negatives added (22 cases):
-    - Diverse mechanism mismatches (antibiotic vs cardiac, antifungal vs CNS)
-    - Cross-disease negatives (diabetes drug vs neurodegeneration)
-    - Pathway-distant pairs (coagulation vs autoimmune)
-    - Same-area but wrong-mechanism (SSRI vs epilepsy gene panel)
-
-    Positive cases: UNCHANGED from v3.1 (n=25). No thresholds modified.
-    N_TEST_CASES updated to 55.
-
 API COMPATIBILITY NOTE
 ----------------------
 All disease names verified against OpenTargets EFO ontology as of Feb 2026.

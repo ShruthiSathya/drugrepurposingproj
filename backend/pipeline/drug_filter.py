@@ -1,39 +1,4 @@
-"""
-Drug Safety Filter v2.0
-========================
-Filters out contraindicated medications for a given disease.
 
-FIXES vs v1
------------
-1. FUZZY DRUG NAME MATCHING: v1 used exact lowercase matching after
-   normalization. ChEMBL preferred names often differ from common names
-   (e.g. "acetylsalicylic acid" vs "aspirin", "paracetamol" vs
-   "acetaminophen"). v2 adds synonym lookup so contraindications are
-   caught regardless of naming variant.
-
-2. GENERIC DISEASE SUPPORT: v1 silently passed everything through for
-   diseases not in the hardcoded list (returned empty with only a warning).
-   v2 adds a mechanism-based filter that catches pharmacological
-   contraindication classes (e.g. dopamine antagonists for any movement
-   disorder, anticholinergics for any dementia) even for diseases not
-   explicitly in the database.
-
-3. EXPANDED CONTRAINDICATION DATABASE: Added coverage for:
-   - Autoimmune / inflammatory diseases
-   - Rare diseases (tuberous sclerosis, cystic fibrosis, SMA)
-   - Oncology (chemo + immunotherapy combinations)
-   - Pulmonary hypertension
-   - Gout
-   - Pericarditis
-
-4. DRUG SYNONYM TABLE: Maps common names ↔ ChEMBL preferred names ↔
-   brand names so matching works regardless of which name the pipeline uses.
-
-5. MECHANISM-BASED CLASS FILTER: Catches whole pharmacological classes
-   (e.g. "all dopamine antagonists in Parkinson's") even when a specific
-   drug name is absent from the database. Reads drug['mechanism'] field
-   from the pipeline.
-"""
 
 import logging
 import re
