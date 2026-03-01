@@ -47,3 +47,5 @@ Thumbs.db
 htmlcov/backend/.venv/
 backend/.venv/
 venv/
+venv/
+venv/

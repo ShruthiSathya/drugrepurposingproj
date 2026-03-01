@@ -1,17 +1,17 @@
 {
   "platt_parameters": {
-    "A": -0.0265,
-    "B": -0.1074,
+    "A": -0.0266,
+    "B": -0.1076,
     "source": "fitted_from_validation_data",
     "note": "Parameters fitted by gradient descent on 53 binary-certain cases (TP + TN). A is negative (higher raw score \u2192 higher calibrated probability). FN cases excluded from fitting. These parameters are also written to calibration_params.json and loaded by calibration.py at runtime."
   },
   "classification_threshold": {
     "calibrated_standard": 0.5,
-    "raw_equivalent_50": -4.051,
+    "raw_equivalent_50": -4.0521,
     "calibrated_conservative": 0.4,
-    "raw_equivalent_40": 11.2459,
+    "raw_equivalent_40": 11.2127,
     "practical_raw_threshold": 0.2,
-    "note": "raw_equivalent_50 = -4.0510. Use raw_equivalent_50 as primary threshold."
+    "note": "raw_equivalent_50 = -4.0521. Use raw_equivalent_50 as primary threshold."
   },
   "ece": 0.0188,
   "ece_interpretation": {
@@ -32,9 +32,9 @@
   "score_distributions": {
     "tp": {
       "n": 24,
-      "mean": 0.4348,
-      "sd": 0.2205,
-      "min": 0.0657,
+      "mean": 0.4339,
+      "sd": 0.2211,
+      "min": 0.0656,
       "max": 0.9115
     },
     "fn": {
@@ -47,29 +47,29 @@
     },
     "tn": {
       "n": 29,
-      "mean": 0.0601,
-      "sd": 0.0519,
+      "mean": 0.0592,
+      "sd": 0.0515,
       "min": 0.0,
-      "max": 0.1928
+      "max": 0.1919
     },
     "fp": {
       "n": 1,
-      "mean": 0.2502,
+      "mean": 0.2477,
       "sd": 0.0,
-      "min": 0.2502,
-      "max": 0.2502,
+      "min": 0.2477,
+      "max": 0.2477,
       "note": "FP typically n=0-2; Cohen's d vs TP unreliable."
     }
   },
   "calibration_table": [
     {
       "raw_score": 0.0,
-      "calibrated_prob": 0.4732,
+      "calibrated_prob": 0.4731,
       "predicted_class": "NOT_REPURPOSED"
     },
     {
       "raw_score": 0.05,
-      "calibrated_prob": 0.4729,
+      "calibrated_prob": 0.4728,
       "predicted_class": "NOT_REPURPOSED"
     },
     {
@@ -79,12 +79,12 @@
     },
     {
       "raw_score": 0.15,
-      "calibrated_prob": 0.4722,
+      "calibrated_prob": 0.4721,
       "predicted_class": "NOT_REPURPOSED"
     },
     {
       "raw_score": 0.2,
-      "calibrated_prob": 0.4719,
+      "calibrated_prob": 0.4718,
       "predicted_class": "REPURPOSED"
     },
     {
@@ -94,12 +94,12 @@
     },
     {
       "raw_score": 0.3,
-      "calibrated_prob": 0.4712,
+      "calibrated_prob": 0.4711,
       "predicted_class": "REPURPOSED"
     },
     {
       "raw_score": 0.35,
-      "calibrated_prob": 0.4709,
+      "calibrated_prob": 0.4708,
       "predicted_class": "REPURPOSED"
     },
     {
@@ -109,12 +109,12 @@
     },
     {
       "raw_score": 0.45,
-      "calibrated_prob": 0.4702,
+      "calibrated_prob": 0.4701,
       "predicted_class": "REPURPOSED"
     },
     {
       "raw_score": 0.5,
-      "calibrated_prob": 0.4699,
+      "calibrated_prob": 0.4698,
       "predicted_class": "REPURPOSED"
     },
     {
@@ -124,17 +124,17 @@
     },
     {
       "raw_score": 0.6,
-      "calibrated_prob": 0.4692,
+      "calibrated_prob": 0.4691,
       "predicted_class": "REPURPOSED"
     },
     {
       "raw_score": 0.65,
-      "calibrated_prob": 0.4689,
+      "calibrated_prob": 0.4688,
       "predicted_class": "REPURPOSED"
     },
     {
       "raw_score": 0.7,
-      "calibrated_prob": 0.4686,
+      "calibrated_prob": 0.4685,
       "predicted_class": "REPURPOSED"
     },
     {
@@ -144,12 +144,12 @@
     },
     {
       "raw_score": 0.8,
-      "calibrated_prob": 0.4679,
+      "calibrated_prob": 0.4678,
       "predicted_class": "REPURPOSED"
     },
     {
       "raw_score": 0.85,
-      "calibrated_prob": 0.4676,
+      "calibrated_prob": 0.4675,
       "predicted_class": "REPURPOSED"
     },
     {
@@ -159,12 +159,12 @@
     },
     {
       "raw_score": 0.95,
-      "calibrated_prob": 0.4669,
+      "calibrated_prob": 0.4668,
       "predicted_class": "REPURPOSED"
     },
     {
       "raw_score": 1.0,
-      "calibrated_prob": 0.4666,
+      "calibrated_prob": 0.4665,
       "predicted_class": "REPURPOSED"
     }
   ],
@@ -182,7 +182,7 @@
       "calibrated_prob"
     ],
     "ece_statement": "Calibration is excellent (ECE < 0.10).",
-    "recommended_methods_text": "Raw network overlap scores were calibrated using Platt scaling (A = -0.027, B = -0.107; fitted by gradient-descent maximum-likelihood logistic regression on 53 binary-certain validation cases). ECE = 0.0188. Calibrated probabilities are reported for supplementary ranking only. Primary performance metrics use sensitivity, specificity, precision, and rank-based retrieval, with binary classification threshold raw_score \u2265 0.2."
+    "recommended_methods_text": "Raw network overlap scores were calibrated using Platt scaling (A = -0.027, B = -0.108; fitted by gradient-descent maximum-likelihood logistic regression on 53 binary-certain validation cases). ECE = 0.0188. Calibrated probabilities are reported for supplementary ranking only. Primary performance metrics use sensitivity, specificity, precision, and rank-based retrieval, with binary classification threshold raw_score \u2265 0.2."
   },
   "data_source": {
     "input_file": "validation_results.json",

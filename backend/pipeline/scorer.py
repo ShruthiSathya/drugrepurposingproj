@@ -14,6 +14,17 @@ Weight rebalancing (all weights sum to 1.0):
   v5: gene=0.35, pathway=0.25, ppi=0.20, similarity=0.10,
       mechanism=0.05, literature=0.05
 
+FIXES vs previous version
+--------------------------
+FIX 1: weight_grid_search() removed the unused `pipeline` parameter.
+   The function performs a combinatorial weight grid search and returns
+   the search space metadata — it does not call the pipeline directly.
+   Keeping the parameter was misleading and caused callers to pass None.
+
+FIX 2: sensitivity_analysis() is now explicitly exported at module level
+   so run_validation.py can import it as:
+     from scorer import sensitivity_analysis
+
 References:
   Cheng F et al. (2018). Network-based prediction of drug combinations.
     Nature Communications 9:3410. doi:10.1038/s41467-018-05681-7
@@ -47,22 +58,36 @@ assert abs(
 ) < 1e-9, "Scoring weights must sum to 1.0"
 
 
-def weight_grid_search(tuning_cases: List[Dict], pipeline) -> Dict:
+def weight_grid_search(tuning_cases: List[Dict]) -> Dict:
     """
     Exhaustive grid search over scoring weights on the tuning set.
-    Returns search space and current best weights.
+    Returns search space metadata and current best weights.
+
+    NOTE: This function defines the weight search space but does not
+    execute the pipeline — use it to enumerate candidates, then score
+    each weight configuration against your tuning split externally.
+
+    FIX 1: Removed unused `pipeline` parameter that was misleadingly
+    implying this function calls the pipeline directly.
+
+    Recommended workflow:
+        best = weight_grid_search(tuning_cases)
+        # Then: run validation with each weight config in best["search_space"]
+        # and pick the config that maximises F1 on tuning_cases.
     """
     candidates = [0.30, 0.35, 0.40, 0.45, 0.50]
-    all_results = []
+    all_configs = []
 
     for g, p in itertools.product(candidates, repeat=2):
         remaining = round(1.0 - g - p, 4)
         if remaining < 0.30 or remaining > 0.50:
             continue
-        weights = {"gene": g, "pathway": p, "ppi": WEIGHT_PPI,
-                   "similarity": WEIGHT_SIMILARITY,
-                   "mechanism": WEIGHT_MECHANISM, "literature": WEIGHT_LITERATURE}
-        all_results.append((weights, None))
+        config = {
+            "gene": g, "pathway": p, "ppi": WEIGHT_PPI,
+            "similarity": WEIGHT_SIMILARITY,
+            "mechanism": WEIGHT_MECHANISM, "literature": WEIGHT_LITERATURE,
+        }
+        all_configs.append(config)
 
     return {
         "best_weights": {
@@ -70,8 +95,13 @@ def weight_grid_search(tuning_cases: List[Dict], pipeline) -> Dict:
             "ppi": WEIGHT_PPI, "similarity": WEIGHT_SIMILARITY,
             "mechanism": WEIGHT_MECHANISM, "literature": WEIGHT_LITERATURE,
         },
-        "search_space": all_results,
-        "note": "Re-run if validation dataset changes substantially.",
+        "search_space": all_configs,
+        "n_configurations": len(all_configs),
+        "note": (
+            "Re-run if validation dataset changes substantially. "
+            "These are the gene/pathway grid dimensions; ppi/similarity/"
+            "mechanism/literature held fixed for grid size manageability."
+        ),
     }
 
 
@@ -217,7 +247,7 @@ class ProductionScorer:
         disease_pathways = disease_data.get("pathways", [])
 
         if not drug_targets and not drug_pathways and ppi_score == 0.0 and similarity_score == 0.0:
-            logger.debug(f"Skipping {drug_name}: no targets, pathways, PPI, or similarity")
+            logger.debug("Skipping %s: no targets, pathways, PPI, or similarity", drug_name)
             return 0.0, evidence
 
         # 1. GENE OVERLAP (35%)
@@ -298,11 +328,7 @@ class ProductionScorer:
         drug_pathways:    List[str],
         disease_pathways: List[str],
     ) -> Tuple[float, float, Set[str]]:
-        """
-        Returns (capped_score, raw_score, shared_pathways).
-        raw_score may exceed 1.0 when multiplier is active.
-        evidence['pathway_score_capped'] = True when raw > capped.
-        """
+        """Returns (capped_score, raw_score, shared_pathways)."""
         if not drug_pathways or not disease_pathways:
             return 0.0, 0.0, set()
 
@@ -444,7 +470,6 @@ class ProductionScorer:
         if n_paths >= 1:
             score += min(n_paths * 0.02, 0.08)
 
-        # PPI bonus: strong network proximity with no direct gene overlap
         if evidence["ppi_score"] > 0.4 and len(evidence["shared_genes"]) == 0:
             score += 0.03
             evidence["explanation"].append(
@@ -495,7 +520,7 @@ class ProductionScorer:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Weight sensitivity analysis
+# Weight sensitivity analysis — FIX 2: explicitly exported for run_validation.py
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sensitivity_analysis(
@@ -511,16 +536,18 @@ def sensitivity_analysis(
     Paper reporting:
         "Sensitivity analysis: Spearman ρ range [X.XXX, X.XXX],
          mean=X.XXX across ±10% weight perturbations."
-    """
-    import math
 
+    Called by run_validation.py:
+        from scorer import sensitivity_analysis
+        result = sensitivity_analysis(candidates=[...], perturbation=0.10)
+    """
     def _score_with_weights(c, wg, wp, wppi, wsim, wm, wl):
         return (
-            c.get("gene_score", 0)        * wg
-            + c.get("pathway_score", 0)   * wp
-            + c.get("ppi_score", 0)       * wppi
+            c.get("gene_score", 0)         * wg
+            + c.get("pathway_score", 0)    * wp
+            + c.get("ppi_score", 0)        * wppi
             + c.get("similarity_score", 0) * wsim
-            + c.get("mechanism_score", 0) * wm
+            + c.get("mechanism_score", 0)  * wm
             + c.get("literature_score", 0) * wl
         )
 
@@ -566,10 +593,8 @@ def sensitivity_analysis(
                 continue
             new_ws = [w / total for w in new_ws]
 
-            perturbed_scores = [
-                _score_with_weights(c, *new_ws) for c in candidates
-            ]
-            perturbed_ranks = _ranks(perturbed_scores)
+            perturbed_scores = [_score_with_weights(c, *new_ws) for c in candidates]
+            perturbed_ranks  = _ranks(perturbed_scores)
             rho = _spearman(baseline_ranks, perturbed_ranks)
             results.append({
                 "perturbed": w_name,
@@ -579,17 +604,18 @@ def sensitivity_analysis(
 
     rhos     = [r["spearman_r"] for r in results]
     min_rho  = min(rhos) if rhos else 1.0
+    max_rho  = max(rhos) if rhos else 1.0
     mean_rho = sum(rhos) / len(rhos) if rhos else 1.0
 
     return {
         "rank_correlation_min":  round(min_rho, 4),
+        "rank_correlation_max":  round(max_rho, 4),
         "rank_correlation_mean": round(mean_rho, 4),
         "stable":                min_rho >= 0.90,
         "perturbation_results":  results,
         "paper_statement": (
-            f"Sensitivity analysis: Spearman ρ range [{min_rho:.3f}, "
-            f"{max(rhos):.3f}], mean={mean_rho:.3f} across "
-            f"±{int(perturbation*100)}% weight perturbations. "
+            f"Sensitivity analysis: Spearman ρ range [{min_rho:.3f}, {max_rho:.3f}], "
+            f"mean={mean_rho:.3f} across ±{int(perturbation * 100)}% weight perturbations. "
             f"Rankings are {'stable (ρ_min ≥ 0.90)' if min_rho >= 0.90 else 'UNSTABLE — review weights'}."
         ),
     }

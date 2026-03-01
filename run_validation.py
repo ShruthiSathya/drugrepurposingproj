@@ -1,63 +1,29 @@
 """
 run_validation.py — Curated Validation Runner
 ==============================================
-Runs the production pipeline against the curated 33-case validation dataset
+Runs the production pipeline against the curated 55-case validation dataset
 and writes results to validation_results.json.
 
 FIXES vs previous version
 --------------------------
-1. Import: Now imports ProductionPipeline directly (also works via RepurposingPipeline
-   alias), and uses generate_candidates() method on the pipeline object.
+1. calibrator.transform(score) used correctly (was calibrate_scores(0.0)).
+2. pipeline.close() in try/finally.
+3. use_tissue=False in generate_candidates().
 
-2. Output keys: validation_results.json now includes BOTH key formats:
-   - 'positive_results' and 'negative_results'    (legacy keys, preserved)
-   - 'test_cases' and 'negative_cases'             (new keys expected by score_calibration.py)
-
-3. n_test_cases: Header now reports 33 (corrected from 34).
-
-4. PASS CRITERION (v3.1): TRUE_POSITIVE cases pass if EITHER:
-   - raw_score >= case["min_score"]  (score criterion)
-   - rank <= case["expected_rank_top_n"]  (rank criterion, PRIMARY)
-   This reflects that rank-based retrieval is the standard benchmark metric
-   for drug repurposing (Himmelstein et al. 2017). A drug ranked #1 out of
-   3002 is a correct prediction regardless of raw score magnitude.
-   expected_rank_top_n=0 disables the rank criterion for that case.
-
-FIXES vs previous version (this file)
---------------------------------------
-FIX 1: calibrate_scores(0.0) called in two places — WRONG on both counts:
-   (a) calibrate_scores() is a module-level function that takes
-       (raw_scores: List[float], labels: List[int]) and returns
-       (List[float], Dict). It cannot be called with a single float.
-   (b) Even if it could, it fits a NEW calibrator from scratch each time,
-       discarding the calibrator instance already loaded in run_all_validations.
-   FIXED: Both call sites now use calibrator.transform(0.0), which correctly
-   applies the already-loaded/fitted calibrator to a single score.
-
-FIX 2: await pipeline.close() was placed after the metrics block but before
-   the output dict assembly, outside any try/finally. If any validation case
-   raised an exception, pipeline sessions (aiohttp ClientSession) would never
-   be closed, producing "Unclosed client session" warnings and aiohttp resource
-   leaks on failure.
-   FIXED: pipeline.close() is now called in a try/finally block in
-   run_all_validations(), guaranteeing cleanup on both success and failure.
-
-FIX 3: use_tissue=False in generate_candidates() call.
-   Tissue expression scoring (HPA REST API) makes thousands of SSL requests
-   across 3002 drugs x all target genes per validation case. This causes two
-   problems:
-     (a) SSL failures on macOS Python 3.13 (CERTIFICATE_VERIFY_FAILED) because
-         the system CA bundle is not auto-installed. Even after fixing SSL,
-     (b) the sheer request volume makes each validation case take 10-20
-         minutes rather than ~1 minute, making a full 55-case run impractical.
-   Tissue scoring is appropriate for the final top-N candidates in
-   analyze_disease() -- it is NOT appropriate for bulk ranking of 3002 drugs
-   where its signal is dominated by curated fallback scores (0.3 uniform).
-   EFO expansion and polypharmacology are retained (both are fast and local).
+NEW in this version (v4.1)
+---------------------------
+4. Baseline comparison integrated: Jaccard, GeneCount, Cosine now run
+   head-to-head and results included in validation_results.json.
+5. sensitivity_analysis() now called and results included in output.
+6. Stratified metrics by disease area added to output.
+7. Data integrity checks added before validation runs.
+8. Pipeline fingerprint (data source versions) recorded in output.
+9. F1 delta vs each baseline for publication table.
 
 Usage
 -----
     python run_validation.py [--min-score 0.0] [--output validation_results.json]
+                             [--skip-baselines] [--skip-sensitivity]
 """
 
 import argparse
@@ -67,10 +33,20 @@ import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from backend.pipeline.production_pipeline import ProductionPipeline
 from backend.pipeline.calibration import load_calibrator
+from backend.pipeline.baselines import (
+    JaccardOverlapBaseline,
+    GeneCountBaseline,
+    CosineSimilarityBaseline,
+)
+from backend.pipeline.scorer import (
+    sensitivity_analysis,
+    WEIGHT_GENE, WEIGHT_PATHWAY, WEIGHT_PPI,
+    WEIGHT_SIMILARITY, WEIGHT_MECHANISM, WEIGHT_LITERATURE,
+)
 from validation_dataset import (
     VALIDATION_CASES,
     DATASET_VERSION,
@@ -84,6 +60,215 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s: %(messag
 logger = logging.getLogger(__name__)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Disease area stratification
+# ─────────────────────────────────────────────────────────────────────────────
+DISEASE_AREA_MAP: Dict[str, List[str]] = {
+    "oncology": [
+        "multiple myeloma", "chronic myelogenous leukemia",
+        "gastrointestinal stromal tumor", "breast cancer", "ovarian cancer",
+        "non-small cell lung carcinoma", "melanoma", "colorectal cancer",
+        "hemophilia a",
+    ],
+    "autoimmune_inflammatory": [
+        "rheumatoid arthritis", "systemic lupus erythematosus",
+        "inflammatory bowel disease", "pericarditis",
+        "hypertrophic cardiomyopathy",
+    ],
+    "cardiovascular": [
+        "pulmonary arterial hypertension", "heart failure",
+        "hypertrophic cardiomyopathy",
+    ],
+    "neurological": [
+        "epilepsy", "parkinson disease", "alzheimer disease",
+        "multiple sclerosis", "amyotrophic lateral sclerosis",
+        "schizophrenia",
+    ],
+    "metabolic": [
+        "type 2 diabetes mellitus", "polycystic ovary syndrome",
+        "hypercholesterolemia",
+    ],
+    "rare_disease": [
+        "tuberous sclerosis", "paroxysmal nocturnal hemoglobinuria",
+        "cystic fibrosis", "spinal muscular atrophy",
+        "infantile hemangioma", "benign prostatic hyperplasia",
+    ],
+}
+
+
+def classify_disease_area(disease_name: str) -> str:
+    name_lower = disease_name.lower()
+    for area, diseases in DISEASE_AREA_MAP.items():
+        for d in diseases:
+            if d in name_lower or name_lower in d:
+                return area
+    return "other"
+
+
+def compute_stratified_metrics(all_results: List[Dict]) -> Dict:
+    area_counts: Dict[str, Dict] = {}
+    for r in all_results:
+        area = classify_disease_area(r["disease"])
+        if area not in area_counts:
+            area_counts[area] = {"tp": 0, "fn": 0, "tn": 0, "fp": 0}
+        expected = r.get("expected_status", "")
+        passed = r.get("pass", False)
+        if expected == "TRUE_POSITIVE":
+            area_counts[area]["tp" if passed else "fn"] += 1
+        elif expected == "TRUE_NEGATIVE":
+            area_counts[area]["tn" if passed else "fp"] += 1
+
+    stratified = {}
+    for area, c in area_counts.items():
+        n_pos = c["tp"] + c["fn"]
+        n_neg = c["tn"] + c["fp"]
+        sens = c["tp"] / n_pos if n_pos else None
+        spec = c["tn"] / n_neg if n_neg else None
+        stratified[area] = {
+            "tp": c["tp"], "fn": c["fn"], "tn": c["tn"], "fp": c["fp"],
+            "sensitivity": round(sens, 4) if sens is not None else None,
+            "specificity": round(spec, 4) if spec is not None else None,
+            "n_positive_cases": n_pos,
+            "n_negative_cases": n_neg,
+        }
+    return stratified
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Data integrity checks (NEW)
+# ─────────────────────────────────────────────────────────────────────────────
+def check_data_integrity(drugs_data: List[Dict]) -> Dict:
+    issues, warnings = [], []
+
+    drugs_with_targets = sum(1 for d in drugs_data if d.get("targets"))
+    coverage = drugs_with_targets / len(drugs_data) if drugs_data else 0
+    if coverage < 0.50:
+        issues.append(f"CRITICAL: Only {coverage:.1%} drugs have gene targets (expected >50%)")
+    elif coverage < 0.65:
+        warnings.append(f"Low target coverage: {coverage:.1%} (expected >65%)")
+
+    names = [d["name"].lower() for d in drugs_data]
+    n_dupes = len(names) - len(set(names))
+    if n_dupes > 0:
+        issues.append(f"Found {n_dupes} duplicate drug names in pool")
+
+    if len(drugs_data) < 1500:
+        issues.append(f"Drug pool too small: {len(drugs_data)} (expected >1500)")
+    elif len(drugs_data) < 2000:
+        warnings.append(f"Drug pool smaller than expected: {len(drugs_data)}")
+
+    essential = ["imatinib", "sildenafil", "metformin", "thalidomide", "rituximab"]
+    drug_names_lower = {d["name"].lower() for d in drugs_data}
+    missing = [e for e in essential if e not in drug_names_lower]
+    if missing:
+        issues.append(f"Missing essential drugs: {missing}")
+
+    return {
+        "passed": len(issues) == 0,
+        "n_drugs": len(drugs_data),
+        "target_coverage": round(coverage, 4),
+        "issues": issues,
+        "warnings": warnings,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pipeline fingerprint (NEW)
+# ─────────────────────────────────────────────────────────────────────────────
+def get_pipeline_fingerprint(drugs_data: List[Dict]) -> Dict:
+    target_sources: Dict[str, int] = {}
+    for d in drugs_data:
+        src = d.get("target_source", "none")
+        target_sources[src] = target_sources.get(src, 0) + 1
+
+    return {
+        "dataset_version": DATASET_VERSION,
+        "run_timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "n_drugs_in_pool": len(drugs_data),
+        "target_source_breakdown": target_sources,
+        "scoring_weights": {
+            "gene": WEIGHT_GENE,
+            "pathway": WEIGHT_PATHWAY,
+            "ppi": WEIGHT_PPI,
+            "similarity": WEIGHT_SIMILARITY,
+            "mechanism": WEIGHT_MECHANISM,
+            "literature": WEIGHT_LITERATURE,
+        },
+        "data_sources": [
+            "ChEMBL (max_phase=4)",
+            "OpenTargets Platform",
+            "DGIdb 4.0",
+            "STRING v12 (PPI)",
+            "Reactome v88",
+            "KEGG PATHWAY",
+        ],
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Baseline comparison (NEW — wires extended_baselines.py into main run)
+# ─────────────────────────────────────────────────────────────────────────────
+async def run_baseline_comparison(
+    positive_cases: List[Dict],
+    negative_cases: List[Dict],
+    pipeline: ProductionPipeline,
+    drugs_data: List[Dict],
+    top_k: int = 100,
+) -> Dict:
+    """
+    Run Jaccard, GeneCount, Cosine baselines head-to-head.
+    Uses Hit@top_k as the retrieval metric (standard for drug repurposing).
+    """
+    logger.info("\n" + "=" * 60)
+    logger.info("BASELINE COMPARISON (Hit@%d)", top_k)
+    logger.info("=" * 60)
+
+    baselines = {
+        "jaccard":    JaccardOverlapBaseline(),
+        "gene_count": GeneCountBaseline(),
+        "cosine":     CosineSimilarityBaseline(use_tfidf=True),
+    }
+    all_gene_lists = [d.get("targets", []) for d in drugs_data]
+    baselines["cosine"].fit(all_gene_lists)
+
+    counts = {name: {"tp": 0, "fn": 0, "tn": 0, "fp": 0} for name in baselines}
+
+    for case in positive_cases + negative_cases:
+        disease_data = await pipeline.data_fetcher.fetch_disease_data(case["disease"])
+        if not disease_data:
+            continue
+        for name, baseline in baselines.items():
+            results = baseline.score_all(drugs_data, disease_data, min_score=0.0)
+            top_names = {r["drug_name"].lower() for r in results[:top_k]}
+            drug_lower = case["drug"].lower()
+            if case["status"] == "TRUE_POSITIVE":
+                counts[name]["tp" if drug_lower in top_names else "fn"] += 1
+            else:
+                counts[name]["tn" if drug_lower not in top_names else "fp"] += 1
+
+    metrics = {}
+    for name, c in counts.items():
+        n_pos = c["tp"] + c["fn"]
+        n_neg = c["tn"] + c["fp"]
+        sens = c["tp"] / n_pos if n_pos else 0
+        spec = c["tn"] / n_neg if n_neg else 0
+        prec = c["tp"] / (c["tp"] + c["fp"]) if (c["tp"] + c["fp"]) else 0
+        f1 = 2 * prec * sens / (prec + sens) if (prec + sens) else 0
+        metrics[name] = {
+            "sensitivity": round(sens, 4), "specificity": round(spec, 4),
+            "precision": round(prec, 4), "f1": round(f1, 4), **c,
+        }
+        logger.info(
+            "  %-15s: sens=%.3f spec=%.3f f1=%.3f  (TP=%d FN=%d TN=%d FP=%d)",
+            name, sens, spec, f1, c["tp"], c["fn"], c["tn"], c["fp"],
+        )
+
+    return {"top_k": top_k, "baselines": metrics}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Single case runner
+# ─────────────────────────────────────────────────────────────────────────────
 async def run_single_validation_case(
     pipeline: ProductionPipeline,
     drugs_data: List[Dict],
@@ -91,29 +276,29 @@ async def run_single_validation_case(
     calibrator: Any,
 ) -> Dict:
     """
-    Run one validation case: fetch disease data, score all drugs, return result.
+    Run one validation case.
 
-    Pass criterion for TRUE_POSITIVE (v3.1):
-        rank_ok  = rank is not None AND expected_rank_top_n > 0 AND rank <= expected_rank_top_n
+    Pass criterion (v3.1):
+        rank_ok  = rank <= expected_rank_top_n (when expected_rank_top_n > 0)
         score_ok = raw_score >= min_score
         passed   = rank_ok OR score_ok
     """
     drug_name    = case["drug"]
     disease_name = case["disease"]
-
-    logger.info(f"  Testing: {drug_name} vs {disease_name} ...")
+    logger.info("  Testing: %s vs %s ...", drug_name, disease_name)
 
     disease_data = await pipeline.data_fetcher.fetch_disease_data(disease_name)
 
     if not disease_data:
-        logger.warning(f"    Disease not found in OpenTargets: {disease_name}")
+        logger.warning("    Disease not found in OpenTargets: %s", disease_name)
         return {
             "drug":                drug_name,
             "disease":             disease_name,
+            "disease_area":        classify_disease_area(disease_name),
             "status":              "analysis_failed",
             "reason":              "Disease not found in OpenTargets",
             "raw_score":           0.0,
-            "calibrated_score":    calibrator.transform(0.0),
+            "calibrated_score":    calibrator.transform(0.0),  # FIX 1
             "rank":                None,
             "expected_rank_top_n": case["expected_rank_top_n"],
             "rank_pass":           False,
@@ -121,11 +306,10 @@ async def run_single_validation_case(
             "expected_status":     case["status"],
             "pass":                False,
             "notes":               case.get("notes", ""),
+            "score_components":    {},
         }
 
-    # FIX 3: use_tissue=False — HPA API is too slow and SSL-unreliable for
-    # bulk validation across 3002 drugs. Tissue scoring runs in analyze_disease()
-    # on the final top-N candidates only.
+    # FIX 3: use_tissue=False — HPA API too slow / SSL-unreliable for bulk validation
     candidates = await pipeline.generate_candidates(
         disease_data=disease_data,
         drugs_data=drugs_data,
@@ -135,31 +319,31 @@ async def run_single_validation_case(
     )
 
     candidates_sorted = sorted(candidates, key=lambda x: x["score"], reverse=True)
-    drug_lower        = drug_name.lower()
-    found_candidate   = None
-    found_rank        = None
+    drug_lower = drug_name.lower()
+    found_candidate = None
+    found_rank = None
 
     for rank, cand in enumerate(candidates_sorted, 1):
         if cand["name"].lower() == drug_lower:
             found_candidate = cand
-            found_rank      = rank
+            found_rank = rank
             break
 
     if found_candidate is None:
         raw_score = 0.0
-        cal_score = calibrator.transform(0.0)
+        cal_score = calibrator.transform(0.0)  # FIX 1
         rank_ok   = False
         score_ok  = case["status"] == "TRUE_NEGATIVE"
         passed    = score_ok
         result_status = (
-            "false_negative"
-            if case["status"] == "TRUE_POSITIVE"
+            "false_negative" if case["status"] == "TRUE_POSITIVE"
             else "true_negative_not_found"
         )
-        logger.info(f"    {drug_name} not in candidates — status: {result_status}")
+        logger.info("    %s not in candidates — status: %s", drug_name, result_status)
+        score_components = {}
     else:
         raw_score = found_candidate["score"]
-        cal_score = calibrator.transform(raw_score)
+        cal_score = calibrator.transform(raw_score)  # FIX 1
 
         if case["status"] == "TRUE_POSITIVE":
             rank_ok  = (
@@ -169,14 +353,12 @@ async def run_single_validation_case(
             )
             score_ok = raw_score >= case["min_score"]
             passed   = rank_ok or score_ok
-
-            if passed:
-                result_status = "found"
-            else:
-                result_status = "false_negative"
+            result_status = "found" if passed else "false_negative"
+            if not passed:
                 logger.warning(
-                    f"    FAIL: {drug_name} score {raw_score:.3f} < expected "
-                    f"{case['min_score']} AND rank {found_rank} > {case['expected_rank_top_n']}"
+                    "    FAIL: %s score %.3f < %.3f AND rank %s > %s",
+                    drug_name, raw_score, case["min_score"],
+                    found_rank, case["expected_rank_top_n"],
                 )
         else:  # TRUE_NEGATIVE
             rank_ok  = False
@@ -187,18 +369,31 @@ async def run_single_validation_case(
             )
             if not passed:
                 logger.warning(
-                    f"    FAIL (FP risk): {drug_name} scored {raw_score:.3f} "
-                    f"(threshold {case['min_score']})"
+                    "    FAIL (FP): %s scored %.3f (threshold %.3f)",
+                    drug_name, raw_score, case["min_score"],
                 )
+
+        score_components = {
+            "gene_score":       found_candidate.get("gene_score", 0.0),
+            "pathway_score":    found_candidate.get("pathway_score", 0.0),
+            "ppi_score":        found_candidate.get("ppi_score", 0.0),
+            "similarity_score": found_candidate.get("similarity_score", 0.0),
+            "mechanism_score":  found_candidate.get("mechanism_score", 0.0),
+            "literature_score": found_candidate.get("literature_score", 0.0),
+            "shared_genes":     found_candidate.get("shared_genes", []),
+            "shared_pathways":  found_candidate.get("shared_pathways", []),
+        }
 
     result = {
         "drug":                  drug_name,
         "disease":               disease_name,
+        "disease_area":          classify_disease_area(disease_name),
         "status":                result_status,
         "expected_status":       case["status"],
         "raw_score":             round(raw_score, 4),
         "calibrated_score":      round(cal_score, 4),
         "rank":                  found_rank,
+        "total_candidates":      len(candidates_sorted),
         "expected_rank_top_n":   case["expected_rank_top_n"],
         "rank_pass":             rank_ok,
         "score_pass":            score_ok,
@@ -207,20 +402,26 @@ async def run_single_validation_case(
         "mechanism":             case["mechanism"],
         "sources":               case["sources"],
         "notes":                 case.get("notes", ""),
+        "score_components":      score_components,
     }
 
     logger.info(
-        f"    {'PASS' if passed else 'FAIL'} — "
-        f"raw={raw_score:.3f} cal={cal_score:.3f} "
-        f"rank={found_rank} status={result_status}"
+        "    %s — raw=%.3f cal=%.3f rank=%s status=%s area=%s",
+        "PASS" if passed else "FAIL",
+        raw_score, cal_score, found_rank, result_status,
+        result["disease_area"],
     )
-
     return result
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Main runner
+# ─────────────────────────────────────────────────────────────────────────────
 async def run_all_validations(
-    min_score:   float = 0.0,
-    output_path: str   = "validation_results.json",
+    min_score:       float = 0.0,
+    output_path:     str   = "validation_results.json",
+    run_baselines:   bool  = True,
+    run_sensitivity: bool  = True,
 ) -> Dict:
     """Run all validation cases and write results JSON."""
     pipeline   = ProductionPipeline()
@@ -228,32 +429,76 @@ async def run_all_validations(
     start_utc  = datetime.now(timezone.utc)
 
     logger.info("=" * 70)
-    logger.info(f"VALIDATION RUN — Dataset {DATASET_VERSION} — {N_TEST_CASES} cases")
+    logger.info("VALIDATION RUN — Dataset %s — %d cases", DATASET_VERSION, N_TEST_CASES)
     logger.info("=" * 70)
 
-    try:
+    try:  # FIX 2: try/finally guarantees pipeline.close()
         logger.info("\nFetching approved drugs (shared across all test cases)...")
         drugs_data = await pipeline.fetch_approved_drugs(limit=3000)
-        logger.info(f"Using {len(drugs_data)} drugs for all tests\n")
+        logger.info("Using %d drugs for all tests\n", len(drugs_data))
+
+        # NEW: data integrity check
+        integrity = check_data_integrity(drugs_data)
+        if not integrity["passed"]:
+            for issue in integrity["issues"]:
+                logger.error("DATA INTEGRITY: %s", issue)
+            logger.warning("Continuing despite integrity issues — results may be unreliable")
+        for w in integrity.get("warnings", []):
+            logger.warning("DATA INTEGRITY WARNING: %s", w)
+
+        # NEW: pipeline fingerprint
+        fingerprint = get_pipeline_fingerprint(drugs_data)
 
         positive_cases = get_positive_cases()
         negative_cases = get_negative_cases()
 
-        logger.info(f"Running {len(positive_cases)} TRUE_POSITIVE cases...")
+        logger.info("Running %d TRUE_POSITIVE cases...", len(positive_cases))
         positive_results = []
         for case in positive_cases:
             result = await run_single_validation_case(pipeline, drugs_data, case, calibrator)
             positive_results.append(result)
 
-        logger.info(f"\nRunning {len(negative_cases)} TRUE_NEGATIVE cases...")
+        logger.info("\nRunning %d TRUE_NEGATIVE cases...", len(negative_cases))
         negative_results = []
         for case in negative_cases:
             result = await run_single_validation_case(pipeline, drugs_data, case, calibrator)
             negative_results.append(result)
 
-    finally:
-        await pipeline.close()
+        # NEW: baseline comparison (wires extended_baselines.py into main run)
+        baseline_comparison: Dict = {}
+        if run_baselines:
+            try:
+                baseline_comparison = await run_baseline_comparison(
+                    positive_cases, negative_cases, pipeline, drugs_data
+                )
+            except Exception as e:
+                logger.warning("Baseline comparison failed (non-fatal): %s", e)
 
+        # NEW: sensitivity analysis (calls sensitivity_analysis() from scorer.py)
+        sensitivity_result: Dict = {}
+        if run_sensitivity:
+            try:
+                candidates_with_components = [
+                    r["score_components"] for r in positive_results + negative_results
+                    if r.get("score_components")
+                ]
+                if candidates_with_components:
+                    sensitivity_result = sensitivity_analysis(
+                        candidates=candidates_with_components,
+                        perturbation=0.10,
+                    )
+                    logger.info(
+                        "\nSensitivity analysis: ρ_min=%.3f  stable=%s",
+                        sensitivity_result.get("rank_correlation_min", 0),
+                        sensitivity_result.get("stable"),
+                    )
+            except Exception as e:
+                logger.warning("Sensitivity analysis failed (non-fatal): %s", e)
+
+    finally:
+        await pipeline.close()  # FIX 2
+
+    # ── Metrics ───────────────────────────────────────────────────────────────
     n_pos = len(positive_results)
     n_neg = len(negative_results)
     tp    = sum(1 for r in positive_results if r["pass"])
@@ -261,44 +506,72 @@ async def run_all_validations(
     tn    = sum(1 for r in negative_results if r["pass"])
     fp    = n_neg - tn
 
-    sensitivity = tp / n_pos if n_pos > 0 else 0.0
-    specificity = tn / n_neg if n_neg > 0 else 0.0
-    precision   = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    f1          = (
+    sensitivity = tp / n_pos if n_pos else 0.0
+    specificity = tn / n_neg if n_neg else 0.0
+    precision   = tp / (tp + fp) if (tp + fp) else 0.0
+    f1 = (
         2 * precision * sensitivity / (precision + sensitivity)
-        if (precision + sensitivity) > 0 else 0.0
+        if (precision + sensitivity) else 0.0
     )
 
-    rank_only_passes = sum(
-        1 for r in positive_results
-        if r.get("rank_pass") and not r.get("score_pass") and r["pass"]
-    )
-    score_only_passes = sum(
-        1 for r in positive_results
-        if r.get("score_pass") and not r.get("rank_pass") and r["pass"]
-    )
-    both_passes = sum(
-        1 for r in positive_results
-        if r.get("rank_pass") and r.get("score_pass") and r["pass"]
-    )
+    rank_only_passes  = sum(1 for r in positive_results if r.get("rank_pass") and not r.get("score_pass") and r["pass"])
+    score_only_passes = sum(1 for r in positive_results if r.get("score_pass") and not r.get("rank_pass") and r["pass"])
+    both_passes       = sum(1 for r in positive_results if r.get("rank_pass") and r.get("score_pass") and r["pass"])
+
+    # NEW: stratified metrics by disease area
+    all_results = positive_results + negative_results
+    stratified = compute_stratified_metrics(all_results)
+
+    # NEW: F1 delta vs each baseline
+    baseline_delta: Dict = {}
+    if baseline_comparison.get("baselines"):
+        for bl_name, bl_m in baseline_comparison["baselines"].items():
+            baseline_delta[bl_name] = {
+                "main_f1":     round(f1, 4),
+                "baseline_f1": bl_m["f1"],
+                "f1_delta":    round(f1 - bl_m["f1"], 4),
+                "main_better": f1 > bl_m["f1"],
+            }
 
     end_utc = datetime.now(timezone.utc)
     elapsed = (end_utc - start_utc).total_seconds()
 
+    # ── Logging summary ───────────────────────────────────────────────────────
     logger.info("\n" + "=" * 70)
     logger.info("VALIDATION SUMMARY")
     logger.info("=" * 70)
-    logger.info(f"  True Positives:  {tp}/{n_pos} ({sensitivity:.1%})")
-    logger.info(f"  True Negatives:  {tn}/{n_neg} ({specificity:.1%})")
-    logger.info(f"  Sensitivity:     {sensitivity:.3f}")
-    logger.info(f"  Specificity:     {specificity:.3f}")
-    logger.info(f"  Precision:       {precision:.3f}")
-    logger.info(f"  F1:              {f1:.3f}")
-    logger.info(f"  Elapsed:         {elapsed:.1f}s")
-    logger.info(
-        f"  Pass breakdown:  rank-only={rank_only_passes} "
-        f"score-only={score_only_passes} both={both_passes}"
-    )
+    logger.info("  True Positives:  %d/%d (%.1f%%)", tp, n_pos, sensitivity * 100)
+    logger.info("  True Negatives:  %d/%d (%.1f%%)", tn, n_neg, specificity * 100)
+    logger.info("  Sensitivity:     %.3f", sensitivity)
+    logger.info("  Specificity:     %.3f", specificity)
+    logger.info("  Precision:       %.3f", precision)
+    logger.info("  F1:              %.3f", f1)
+    logger.info("  Elapsed:         %.1fs", elapsed)
+    logger.info("  Pass breakdown:  rank-only=%d  score-only=%d  both=%d",
+                rank_only_passes, score_only_passes, both_passes)
+
+    if stratified:
+        logger.info("\n  Stratified by disease area:")
+        for area, m in stratified.items():
+            logger.info(
+                "    %-30s: sens=%s  spec=%s  (n_pos=%d  n_neg=%d)",
+                area, m["sensitivity"], m["specificity"],
+                m["n_positive_cases"], m["n_negative_cases"],
+            )
+
+    if baseline_comparison.get("baselines"):
+        logger.info("\n  Baseline comparison (Hit@%d):", baseline_comparison.get("top_k", 100))
+        logger.info("  %-15s  %-6s  %-6s  %-6s", "Method", "Sens", "Spec", "F1")
+        logger.info("  %-15s  %.4f  %.4f  %.4f", "MAIN", sensitivity, specificity, f1)
+        for bl_name, bl_m in baseline_comparison["baselines"].items():
+            delta = f1 - bl_m["f1"]
+            logger.info(
+                "  %-15s  %.4f  %.4f  %.4f  (Δ F1=%+.4f)",
+                bl_name, bl_m["sensitivity"], bl_m["specificity"], bl_m["f1"], delta,
+            )
+
+    if sensitivity_result.get("paper_statement"):
+        logger.info("\n  %s", sensitivity_result["paper_statement"])
 
     output = {
         "header": {
@@ -311,6 +584,8 @@ async def run_all_validations(
             "min_score_used":    min_score,
             "pass_criterion":    "rank_ok OR score_ok (v3.1)",
         },
+        "pipeline_fingerprint":  fingerprint,        # NEW
+        "data_integrity":        integrity,           # NEW
         "metrics": {
             "tp":                   tp,
             "fn":                   fn,
@@ -324,10 +599,15 @@ async def run_all_validations(
             "score_only_passes":    score_only_passes,
             "both_criteria_passes": both_passes,
         },
-        "positive_results": positive_results,
-        "negative_results": negative_results,
-        "test_cases":     positive_results,
-        "negative_cases": negative_results,
+        "stratified_metrics":    stratified,          # NEW
+        "baseline_comparison":   baseline_comparison, # NEW
+        "baseline_f1_delta":     baseline_delta,      # NEW
+        "sensitivity_analysis":  sensitivity_result,  # NEW
+        "positive_results":      positive_results,
+        "negative_results":      negative_results,
+        # Legacy key aliases (preserved for score_calibration.py)
+        "test_cases":            positive_results,
+        "negative_cases":        negative_results,
         "out_of_scope_cases": [
             {
                 "drug":            c["drug"],
@@ -341,8 +621,7 @@ async def run_all_validations(
 
     out_path = Path(output_path)
     out_path.write_text(json.dumps(output, indent=2))
-    logger.info(f"\nResults written to: {out_path.resolve()}")
-
+    logger.info("\nResults written to: %s", out_path.resolve())
     return output
 
 
@@ -350,23 +629,46 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run curated validation suite against the drug repurposing pipeline"
     )
-    parser.add_argument("--min-score", type=float, default=0.0)
-    parser.add_argument("--output", type=str, default="validation_results.json")
+    parser.add_argument("--min-score",        type=float, default=0.0)
+    parser.add_argument("--output",           type=str,   default="validation_results.json")
+    parser.add_argument("--skip-baselines",   action="store_true",
+                        help="Skip baseline comparison for faster run")
+    parser.add_argument("--skip-sensitivity", action="store_true",
+                        help="Skip weight sensitivity analysis")
     args = parser.parse_args()
 
     try:
         result  = asyncio.run(run_all_validations(
             min_score=args.min_score,
             output_path=args.output,
+            run_baselines=not args.skip_baselines,
+            run_sensitivity=not args.skip_sensitivity,
         ))
         metrics = result["metrics"]
         print("\nFINAL METRICS")
         print(f"  Sensitivity: {metrics['sensitivity']:.3f}")
         print(f"  Specificity: {metrics['specificity']:.3f}")
+        print(f"  Precision:   {metrics['precision']:.3f}")
         print(f"  F1:          {metrics['f1']:.3f}")
+
+        if result.get("baseline_f1_delta"):
+            print("\nBASELINE F1 COMPARISON:")
+            for bl_name, d in result["baseline_f1_delta"].items():
+                print(f"  vs {bl_name:15s}: main={d['main_f1']:.3f}  "
+                      f"baseline={d['baseline_f1']:.3f}  Δ={d['f1_delta']:+.3f}")
+
+        if result.get("stratified_metrics"):
+            print("\nSTRATIFIED SENSITIVITY:")
+            for area, m in result["stratified_metrics"].items():
+                if m["n_positive_cases"] > 0:
+                    print(f"  {area:30s}: {m['sensitivity']}")
+
+        if result.get("sensitivity_analysis", {}).get("paper_statement"):
+            print(f"\n{result['sensitivity_analysis']['paper_statement']}")
+
         sys.exit(0)
     except Exception as e:
-        logger.error(f"Validation failed: {e}")
+        logger.error("Validation failed: %s", e)
         raise
 
 

@@ -19,11 +19,16 @@
 #
 # FIX 4: Step 5 (statistical_tests.py) added for bootstrap CIs.
 #
+# FIX 5: RepoDB step now uses --max-diseases 20 to limit benchmark to first
+#   20 diseases. Full RepoDB (~1500 diseases) takes many hours. Run with
+#   --full-repodb to disable the limit.
+#
 # Usage:
 #   chmod +x validate_all.sh
 #   ./validate_all.sh
 #   ./validate_all.sh --repodb-file path/to/repodb.csv
 #   ./validate_all.sh --skip-repodb
+#   ./validate_all.sh --full-repodb      # removes the 20-disease limit
 # =============================================================================
 
 set -euo pipefail
@@ -46,11 +51,13 @@ log_section() {
 
 REPODB_FILE="repodb.csv"
 SKIP_REPODB=0
+MAX_DISEASES=20        # FIX 5: default to 20 diseases for speed
 
 for arg in "$@"; do
     case $arg in
         --repodb-file=*)  REPODB_FILE="${arg#*=}" ;;
         --skip-repodb)    SKIP_REPODB=1 ;;
+        --full-repodb)    MAX_DISEASES="" ;;   # empty = no limit
     esac
 done
 
@@ -101,7 +108,7 @@ if [[ $HAS_JQ -eq 1 ]]; then
         log_warn "  n_test_cases = $N_CASES (expected 55 — check validation_dataset.py)"
     fi
 fi
-#==============================================================================
+
 # =============================================================================
 # STEP 2: Score Calibration Analysis
 # =============================================================================
@@ -118,8 +125,6 @@ fi
 log_ok "Step 2 complete — calibration_results.json written"
 
 # ─── FIX 2: Check A is NEGATIVE (not B) ──────────────────────────────────────
-# B has no sign constraint. A must be negative for correct orientation.
-# Checking B sign was a bug in v1 — removed entirely.
 if [[ $HAS_JQ -eq 1 ]]; then
     PLATT_A_RAW=$(jq -r '.platt_parameters.A' calibration_results.json 2>/dev/null || echo "0")
     PLATT_B_RAW=$(jq -r '.platt_parameters.B' calibration_results.json 2>/dev/null || echo "0")
@@ -145,11 +150,9 @@ except:
         log_warn "  Could not parse Platt A value: '$PLATT_A_RAW'"
     fi
 
-    # B: just report the value — no pass/fail check (B has no sign constraint)
     log_info "  Platt B = $PLATT_B_RAW (intercept — sign is unconstrained)"
     log_info "  ECE     = $ECE"
 
-    # Warn if calibrated threshold is unreachable
     THRESH_RAW=$(jq -r '.classification_threshold.raw_equivalent_50 // "N/A"' calibration_results.json)
     if [[ "$THRESH_RAW" != "N/A" ]]; then
         THRESH_OK=$(python3 -c "
@@ -169,18 +172,27 @@ except:
 fi
 
 # =============================================================================
-# STEP 3: RepoDB Benchmark (optional)
+# STEP 3: RepoDB Benchmark (first 20 diseases by default)
 # =============================================================================
 log_section "STEP 3/5: RepoDB Benchmark"
 
 if [[ $SKIP_REPODB -eq 1 ]]; then
-    log_warn "RepoDB benchmark SKIPPED."
-    log_warn "Run without --skip-repodb to enable."
+    log_warn "RepoDB benchmark SKIPPED (--skip-repodb)."
 else
+    # FIX 5: Build the --max-diseases flag conditionally
+    if [[ -n "$MAX_DISEASES" ]]; then
+        MAX_DISEASES_FLAG="--max-diseases $MAX_DISEASES"
+        log_info "RepoDB: limiting to first $MAX_DISEASES diseases (use --full-repodb to disable)"
+    else
+        MAX_DISEASES_FLAG=""
+        log_info "RepoDB: running on ALL diseases (full benchmark — this will take hours)"
+    fi
+
     python3 repodb_benchmark.py \
         --repodb-file "$REPODB_FILE" \
         --top-n 50 \
-        --output repodb_benchmark_results.json
+        --output repodb_benchmark_results.json \
+        $MAX_DISEASES_FLAG
 
     if [[ ! -f repodb_benchmark_results.json ]]; then
         log_error "Step 3 FAILED."
@@ -205,7 +217,7 @@ fi
 log_ok "Step 4 complete — fn_analysis.json written"
 
 # =============================================================================
-# STEP 5: Statistical Tests (NEW — bootstrap CIs, McNemar, DeLong)
+# STEP 5: Statistical Tests (bootstrap CIs, McNemar, DeLong)
 # =============================================================================
 log_section "STEP 5/5: Statistical Tests (Bootstrap CI, McNemar, DeLong)"
 
@@ -240,7 +252,7 @@ echo "  Output files created:"
 echo "    ✓ validation_results.json"
 echo "    ✓ calibration_results.json"
 if [[ $SKIP_REPODB -eq 0 ]]; then
-    echo "    ✓ repodb_benchmark_results.json"
+    echo "    ✓ repodb_benchmark_results.json  (first ${MAX_DISEASES:-ALL} diseases)"
 else
     echo "    – repodb_benchmark_results.json  (skipped)"
 fi
@@ -332,10 +344,12 @@ if [[ $SKIP_REPODB -eq 0 ]] && [[ -f repodb_benchmark_results.json ]]; then
     echo "  ┌──────────────────────────────────────────────────────┐"
     echo "  │  REPODB BENCHMARK  (repodb_benchmark_results.json)   │"
     echo "  └──────────────────────────────────────────────────────┘"
+    N_DISEASES_TESTED=$(jq -r '.summary.n_diseases_tested // "N/A"' repodb_benchmark_results.json)
     AUC_ROC=$(jq -r '.summary.global_auc_roc // "N/A"' repodb_benchmark_results.json)
     AUC_PR=$(jq  -r '.summary.global_auc_pr  // "N/A"' repodb_benchmark_results.json)
     HIT50=$(jq   -r '.summary."hit_at_50"    // "N/A"' repodb_benchmark_results.json)
     MRR=$(jq     -r '.summary.mrr            // "N/A"' repodb_benchmark_results.json)
+    echo "    Diseases  : $N_DISEASES_TESTED tested"
     echo "    AUC-ROC   : $AUC_ROC"
     echo "    AUC-PR    : $AUC_PR"
     echo "    Hit@50    : $HIT50"
@@ -360,13 +374,11 @@ check() {
     esac
 }
 
-# Sensitivity >= 65%
 SENS_RESULT="fail"
 [[ "$SENS_OK" == "yes" ]] && SENS_RESULT="pass"
 [[ "$SENS_OK" == "unknown" ]] && SENS_RESULT="warn"
 check "Sensitivity ≥ 65%" "$SENS_RESULT" "$SENSITIVITY"
 
-# Specificity >= 75%
 SPEC_OK=$(python3 -c "
 try:
     s = float('$SPECIFICITY')
@@ -379,7 +391,6 @@ SPEC_RESULT="fail"
 [[ "$SPEC_OK" == "unknown" ]] && SPEC_RESULT="warn"
 check "Specificity ≥ 75%" "$SPEC_RESULT" "$SPECIFICITY"
 
-# Precision >= 65%
 PREC_OK=$(python3 -c "
 try:
     p = float('$PRECISION')
@@ -392,13 +403,11 @@ PREC_RESULT="fail"
 [[ "$PREC_OK" == "unknown" ]] && PREC_RESULT="warn"
 check "Precision ≥ 65%" "$PREC_RESULT" "$PRECISION"
 
-# Platt A is negative (CORRECT CHECK — not B)
 A_RESULT="fail"
 [[ "$A_IS_NEGATIVE" == "yes" ]] && A_RESULT="pass"
 [[ "$A_IS_NEGATIVE" == "unknown" ]] && A_RESULT="warn"
 check "Platt A is negative (correct orientation)" "$A_RESULT" "A = $PLATT_A_RAW"
 
-# ECE < 0.15
 ECE_OK=$(python3 -c "
 try:
     e = float('$ECE')
@@ -411,18 +420,16 @@ ECE_RESULT="fail"
 [[ "$ECE_OK" == "unknown" ]] && ECE_RESULT="warn"
 check "ECE < 0.15" "$ECE_RESULT" "$ECE"
 
-# Statistical tests run
 if [[ -f statistical_results.json ]]; then
     check "Bootstrap CI computed" "pass" "statistical_results.json present"
 else
     check "Bootstrap CI computed" "skip" "statistical_tests.py not found"
 fi
 
-# RepoDB run
 if [[ $SKIP_REPODB -eq 0 ]] && [[ -f repodb_benchmark_results.json ]]; then
-    check "RepoDB benchmark" "pass" "AUC-ROC=$AUC_ROC  Hit@50=$HIT50"
+    check "RepoDB benchmark" "pass" "AUC-ROC=$AUC_ROC  Hit@50=$HIT50  (n=$N_DISEASES_TESTED diseases)"
 else
-    check "RepoDB benchmark" "skip" "run with --repodb-file to enable"
+    check "RepoDB benchmark" "skip" "run without --skip-repodb to enable"
 fi
 
 echo ""

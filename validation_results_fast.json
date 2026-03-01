@@ -4,14 +4,14 @@
     "n_test_cases": 55,
     "n_positive_cases": 25,
     "n_negative_cases": 30,
-    "run_timestamp_utc": "2026-02-24T20:52:52.319241+00:00",
-    "elapsed_seconds": 10811.84,
+    "run_timestamp_utc": "2026-02-24T18:06:07.629204+00:00",
+    "elapsed_seconds": 2863.51,
     "min_score_used": 0.0,
     "pass_criterion": "rank_ok OR score_ok (v3.1)"
   },
   "pipeline_fingerprint": {
     "dataset_version": "v4.0",
-    "run_timestamp_utc": "2026-02-24T20:52:52.336128+00:00",
+    "run_timestamp_utc": "2026-02-24T18:06:07.641680+00:00",
     "n_drugs_in_pool": 3002,
     "target_source_breakdown": {
       "dgidb": 2064,
@@ -128,130 +128,9 @@
       "n_negative_cases": 2
     }
   },
-  "baseline_comparison": {
-    "top_k": 100,
-    "baselines": {
-      "jaccard": {
-        "sensitivity": 0.72,
-        "specificity": 0.9,
-        "precision": 0.8571,
-        "f1": 0.7826,
-        "tp": 18,
-        "fn": 7,
-        "tn": 27,
-        "fp": 3
-      },
-      "gene_count": {
-        "sensitivity": 0.76,
-        "specificity": 0.9,
-        "precision": 0.8636,
-        "f1": 0.8085,
-        "tp": 19,
-        "fn": 6,
-        "tn": 27,
-        "fp": 3
-      },
-      "cosine": {
-        "sensitivity": 0.72,
-        "specificity": 0.9667,
-        "precision": 0.9474,
-        "f1": 0.8182,
-        "tp": 18,
-        "fn": 7,
-        "tn": 29,
-        "fp": 1
-      }
-    }
-  },
-  "baseline_f1_delta": {
-    "jaccard": {
-      "main_f1": 0.96,
-      "baseline_f1": 0.7826,
-      "f1_delta": 0.1774,
-      "main_better": true
-    },
-    "gene_count": {
-      "main_f1": 0.96,
-      "baseline_f1": 0.8085,
-      "f1_delta": 0.1515,
-      "main_better": true
-    },
-    "cosine": {
-      "main_f1": 0.96,
-      "baseline_f1": 0.8182,
-      "f1_delta": 0.1418,
-      "main_better": true
-    }
-  },
-  "sensitivity_analysis": {
-    "rank_correlation_min": 0.9578,
-    "rank_correlation_max": 1.0,
-    "rank_correlation_mean": 0.9952,
-    "stable": true,
-    "perturbation_results": [
-      {
-        "perturbed": "gene",
-        "direction": "+",
-        "spearman_r": 0.9988
-      },
-      {
-        "perturbed": "gene",
-        "direction": "-",
-        "spearman_r": 0.9979
-      },
-      {
-        "perturbed": "pathway",
-        "direction": "+",
-        "spearman_r": 0.999
-      },
-      {
-        "perturbed": "pathway",
-        "direction": "-",
-        "spearman_r": 0.9991
-      },
-      {
-        "perturbed": "ppi",
-        "direction": "+",
-        "spearman_r": 0.9994
-      },
-      {
-        "perturbed": "ppi",
-        "direction": "-",
-        "spearman_r": 0.999
-      },
-      {
-        "perturbed": "similarity",
-        "direction": "+",
-        "spearman_r": 0.9915
-      },
-      {
-        "perturbed": "similarity",
-        "direction": "-",
-        "spearman_r": 0.9578
-      },
-      {
-        "perturbed": "mechanism",
-        "direction": "+",
-        "spearman_r": 1.0
-      },
-      {
-        "perturbed": "mechanism",
-        "direction": "-",
-        "spearman_r": 1.0
-      },
-      {
-        "perturbed": "literature",
-        "direction": "+",
-        "spearman_r": 1.0
-      },
-      {
-        "perturbed": "literature",
-        "direction": "-",
-        "spearman_r": 1.0
-      }
-    ],
-    "paper_statement": "Sensitivity analysis: Spearman \u03c1 range [0.958, 1.000], mean=0.995 across \u00b110% weight perturbations. Rankings are stable (\u03c1_min \u2265 0.90)."
-  },
+  "baseline_comparison": {},
+  "baseline_f1_delta": {},
+  "sensitivity_analysis": {},
   "positive_results": [
     {
       "drug": "sildenafil",
@@ -282,14 +161,14 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "NOS3",
           "VEGFA",
-          "PDE5A"
+          "PDE5A",
+          "NOS3"
         ],
         "shared_pathways": [
+          "Pulmonary vascular remodeling",
           "Nitric oxide signaling",
-          "cGMP-PKG signaling",
-          "Pulmonary vascular remodeling"
+          "cGMP-PKG signaling"
         ]
       }
     },
@@ -321,14 +200,14 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "TCF7L2",
           "HNF1B",
-          "PPARA",
-          "SLC22A3",
           "KCNJ11",
+          "SLC2A2",
           "BDNF",
           "PPARG",
-          "SLC2A2",
-          "TCF7L2"
+          "PPARA",
+          "SLC22A3"
         ],
         "shared_pathways": []
       }
@@ -396,17 +275,17 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "PTGS2",
-          "FGFR2",
-          "HGF",
           "DDB1",
+          "FGFR2",
           "CUL4A",
+          "HGF",
+          "CRBN",
           "RBX1",
-          "CRBN"
+          "PTGS2"
         ],
         "shared_pathways": [
-          "Ubiquitin-proteasome system",
-          "Protein degradation"
+          "Protein degradation",
+          "Ubiquitin-proteasome system"
         ]
       }
     },
@@ -438,34 +317,34 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "ABL1",
-          "CSF3R",
-          "FRK",
-          "YES1",
-          "PRKCH",
-          "MYC",
-          "RUNX1",
-          "EGFR",
-          "CSF1R",
-          "NF1",
-          "HCK",
-          "PDGFRB",
-          "BRAF",
-          "JAK2",
-          "CTNNB1",
-          "BCR",
-          "PTEN",
-          "IDH1",
-          "LCK",
           "KIT",
-          "FLT3",
-          "KRAS",
+          "CTNNB1",
+          "PDGFRB",
+          "YES1",
+          "BRAF",
           "IKZF1",
-          "LYN"
+          "NF1",
+          "BCR",
+          "RUNX1",
+          "JAK2",
+          "LCK",
+          "CSF1R",
+          "CSF3R",
+          "HCK",
+          "LYN",
+          "FLT3",
+          "FRK",
+          "PTEN",
+          "EGFR",
+          "PRKCH",
+          "ABL1",
+          "KRAS",
+          "IDH1",
+          "MYC"
         ],
         "shared_pathways": [
-          "PDGFR signaling",
           "Pulmonary vascular remodeling",
+          "PDGFR signaling",
           "BCR-ABL signaling",
           "Tyrosine kinase signaling"
         ]
@@ -499,32 +378,32 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "ABL1",
-          "FRK",
-          "ALK",
-          "HGF",
           "NF2",
-          "EGFR",
-          "CSF1R",
-          "NF1",
+          "KIT",
           "PDGFRB",
-          "RET",
           "BRAF",
+          "IKZF1",
+          "HGF",
+          "NF1",
           "BCR",
           "NTRK1",
-          "PTEN",
-          "PDGFRA",
-          "KIT",
+          "RET",
+          "CSF1R",
+          "ALK",
           "FLT3",
-          "KRAS",
-          "IKZF1"
+          "PDGFRA",
+          "FRK",
+          "PTEN",
+          "EGFR",
+          "ABL1",
+          "KRAS"
         ],
         "shared_pathways": [
-          "PDGFR signaling",
-          "Receptor tyrosine kinase",
           "BCR-ABL signaling",
-          "Pulmonary vascular remodeling",
-          "Tyrosine kinase signaling"
+          "Tyrosine kinase signaling",
+          "Receptor tyrosine kinase",
+          "PDGFR signaling",
+          "Pulmonary vascular remodeling"
         ]
       }
     },
@@ -556,19 +435,19 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "CYP19A1",
+          "PTEN",
+          "ESR1",
+          "KIT",
+          "PIK3CA",
           "RB1",
           "CDKN2A",
-          "CYP19A1",
-          "ERBB2",
-          "PTEN",
-          "KIT",
-          "ESR1",
-          "PIK3CA"
+          "ERBB2"
         ],
         "shared_pathways": [
-          "Nuclear receptor signaling",
-          "EGFR signaling",
           "HER2 signaling",
+          "EGFR signaling",
+          "Nuclear receptor signaling",
           "Estrogen receptor signaling"
         ]
       }
@@ -601,37 +480,37 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "RAD51B",
-          "TET2",
-          "CDK12",
           "PARP1",
           "PARP3",
-          "RAD51C",
-          "ATM",
-          "BRCA2",
-          "ATRX",
-          "CHEK2",
-          "MYC",
           "BRCA1",
-          "BARD1",
-          "BRAF",
           "ARID1B",
+          "ATM",
+          "BRAF",
           "ATR",
-          "DNMT3A",
-          "FANCA",
+          "TP53",
+          "PALB2",
+          "BRCA2",
           "ESR1",
           "PIK3CA",
           "RB1",
-          "PALB2",
+          "CHEK2",
           "ERBB2",
+          "PARP2",
           "RAD51D",
           "PTEN",
-          "PARP2",
-          "TP53"
+          "CDK12",
+          "FANCA",
+          "DNMT3A",
+          "TET2",
+          "RAD51B",
+          "RAD51C",
+          "BARD1",
+          "ATRX",
+          "MYC"
         ],
         "shared_pathways": [
-          "Nuclear receptor signaling",
-          "Estrogen receptor signaling"
+          "Estrogen receptor signaling",
+          "Nuclear receptor signaling"
         ]
       }
     },
@@ -663,30 +542,30 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "CDK12",
           "STK11",
-          "ALK",
-          "NRAS",
-          "ATM",
-          "ARID1A",
-          "PDCD1",
-          "EGFR",
-          "MSH6",
-          "CD274",
-          "BRAF",
           "PBRM1",
+          "BRAF",
+          "ATM",
+          "TP53",
+          "PDCD1",
+          "CD274",
           "PIK3CA",
-          "FGFR3",
+          "ALK",
           "ERBB2",
-          "MLH1",
+          "MSH6",
           "PTEN",
+          "EGFR",
+          "CDK12",
+          "FGFR3",
+          "MLH1",
+          "NRAS",
           "KRAS",
-          "TP53"
+          "ARID1A"
         ],
         "shared_pathways": [
-          "EGFR signaling",
+          "MAPK signaling",
           "HER2 signaling",
-          "MAPK signaling"
+          "EGFR signaling"
         ]
       }
     },
@@ -718,26 +597,26 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "POLE",
-          "ROS1",
-          "CDK12",
-          "STK11",
-          "B2M",
-          "NRAS",
-          "ARID1A",
-          "PDCD1",
-          "MDM2",
-          "MET",
-          "CD274",
-          "BRAF",
-          "PBRM1",
-          "ERBB2",
           "FGFR1",
-          "PTEN",
-          "IDH1",
+          "STK11",
           "KIT",
+          "PBRM1",
+          "BRAF",
+          "MET",
           "TP53",
-          "MDM4"
+          "PDCD1",
+          "B2M",
+          "POLE",
+          "CD274",
+          "MDM4",
+          "MDM2",
+          "ERBB2",
+          "PTEN",
+          "CDK12",
+          "NRAS",
+          "IDH1",
+          "ARID1A",
+          "ROS1"
         ],
         "shared_pathways": []
       }
@@ -771,10 +650,10 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "TSC1",
           "NTRK1",
           "PPARG",
-          "PIK3CA",
-          "TSC1"
+          "PIK3CA"
         ],
         "shared_pathways": []
       }
@@ -807,11 +686,11 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "IL6",
-          "FCGR2A",
-          "CXCL13",
           "JAK2",
-          "MS4A1"
+          "MS4A1",
+          "FCGR2A",
+          "IL6",
+          "CXCL13"
         ],
         "shared_pathways": [
           "JAK-STAT signaling",
@@ -883,14 +762,14 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "CACNA2D1",
-          "CACNA1B",
           "CACNA1A",
-          "CACNA1I",
           "CACNA2D2",
-          "CACNA1H",
           "KCNQ3",
           "CACNA1G",
+          "CACNA1B",
+          "CACNA1H",
+          "CACNA2D1",
+          "CACNA1I",
           "CACNA1E"
         ],
         "shared_pathways": []
@@ -924,14 +803,14 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "SRD5A2",
           "SRD5A1",
+          "SRD5A2",
           "AR"
         ],
         "shared_pathways": [
+          "5-alpha reductase pathway",
           "Androgen receptor signaling",
-          "Hair follicle cycling",
-          "5-alpha reductase pathway"
+          "Hair follicle cycling"
         ]
       }
     },
@@ -963,17 +842,17 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "TUBB2A",
           "TUBB6",
-          "NRG1",
           "TUBB1",
+          "NRG1",
+          "TUBB2B",
+          "TUBB2A",
           "TUBB4B",
           "BDNF",
-          "TUBB",
-          "TUBB8",
-          "TUBB4A",
           "TUBB3",
-          "TUBB2B"
+          "TUBB8",
+          "TUBB",
+          "TUBB4A"
         ],
         "shared_pathways": []
       }
@@ -1006,16 +885,16 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "TUBB2A",
           "TUBB6",
           "TUBB1",
+          "TUBB2B",
+          "TUBB2A",
           "TUBB4B",
-          "TUB",
-          "TUBB",
-          "TUBB8",
-          "TUBB4A",
           "TUBB3",
-          "TUBB2B"
+          "TUB",
+          "TUBB8",
+          "TUBB",
+          "TUBB4A"
         ],
         "shared_pathways": []
       }
@@ -1050,14 +929,14 @@
         "shared_genes": [
           "DDB1",
           "CUL4A",
-          "KDR",
+          "CRBN",
           "RBX1",
           "TP53",
-          "CRBN"
+          "KDR"
         ],
         "shared_pathways": [
-          "Ubiquitin-proteasome system",
-          "Protein degradation"
+          "Protein degradation",
+          "Ubiquitin-proteasome system"
         ]
       }
     },
@@ -1120,9 +999,9 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "TSC1",
           "FKBP1A",
-          "TSC2",
-          "TSC1"
+          "TSC2"
         ],
         "shared_pathways": []
       }
@@ -2109,9 +1988,9 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "PLA2G6",
           "ATM",
           "TP53",
-          "PLA2G6",
           "SF3B1"
         ],
         "shared_pathways": []
@@ -2145,12 +2024,12 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "ABCG2",
-          "IBSP",
-          "UMOD",
-          "PTGS2",
           "SLCO1B1",
           "TCF7L2",
+          "UMOD",
+          "ABCG2",
+          "PTGS2",
+          "IBSP",
           "ABCA1"
         ],
         "shared_pathways": []
@@ -2240,14 +2119,14 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "NOS3",
           "VEGFA",
-          "PDE5A"
+          "PDE5A",
+          "NOS3"
         ],
         "shared_pathways": [
+          "Pulmonary vascular remodeling",
           "Nitric oxide signaling",
-          "cGMP-PKG signaling",
-          "Pulmonary vascular remodeling"
+          "cGMP-PKG signaling"
         ]
       }
     },
@@ -2279,14 +2158,14 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "TCF7L2",
           "HNF1B",
-          "PPARA",
-          "SLC22A3",
           "KCNJ11",
+          "SLC2A2",
           "BDNF",
           "PPARG",
-          "SLC2A2",
-          "TCF7L2"
+          "PPARA",
+          "SLC22A3"
         ],
         "shared_pathways": []
       }
@@ -2354,17 +2233,17 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "PTGS2",
-          "FGFR2",
-          "HGF",
           "DDB1",
+          "FGFR2",
           "CUL4A",
+          "HGF",
+          "CRBN",
           "RBX1",
-          "CRBN"
+          "PTGS2"
         ],
         "shared_pathways": [
-          "Ubiquitin-proteasome system",
-          "Protein degradation"
+          "Protein degradation",
+          "Ubiquitin-proteasome system"
         ]
       }
     },
@@ -2396,34 +2275,34 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "ABL1",
-          "CSF3R",
-          "FRK",
-          "YES1",
-          "PRKCH",
-          "MYC",
-          "RUNX1",
-          "EGFR",
-          "CSF1R",
-          "NF1",
-          "HCK",
-          "PDGFRB",
-          "BRAF",
-          "JAK2",
-          "CTNNB1",
-          "BCR",
-          "PTEN",
-          "IDH1",
-          "LCK",
           "KIT",
-          "FLT3",
-          "KRAS",
+          "CTNNB1",
+          "PDGFRB",
+          "YES1",
+          "BRAF",
           "IKZF1",
-          "LYN"
+          "NF1",
+          "BCR",
+          "RUNX1",
+          "JAK2",
+          "LCK",
+          "CSF1R",
+          "CSF3R",
+          "HCK",
+          "LYN",
+          "FLT3",
+          "FRK",
+          "PTEN",
+          "EGFR",
+          "PRKCH",
+          "ABL1",
+          "KRAS",
+          "IDH1",
+          "MYC"
         ],
         "shared_pathways": [
-          "PDGFR signaling",
           "Pulmonary vascular remodeling",
+          "PDGFR signaling",
           "BCR-ABL signaling",
           "Tyrosine kinase signaling"
         ]
@@ -2457,32 +2336,32 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "ABL1",
-          "FRK",
-          "ALK",
-          "HGF",
           "NF2",
-          "EGFR",
-          "CSF1R",
-          "NF1",
+          "KIT",
           "PDGFRB",
-          "RET",
           "BRAF",
+          "IKZF1",
+          "HGF",
+          "NF1",
           "BCR",
           "NTRK1",
-          "PTEN",
-          "PDGFRA",
-          "KIT",
+          "RET",
+          "CSF1R",
+          "ALK",
           "FLT3",
-          "KRAS",
-          "IKZF1"
+          "PDGFRA",
+          "FRK",
+          "PTEN",
+          "EGFR",
+          "ABL1",
+          "KRAS"
         ],
         "shared_pathways": [
-          "PDGFR signaling",
-          "Receptor tyrosine kinase",
           "BCR-ABL signaling",
-          "Pulmonary vascular remodeling",
-          "Tyrosine kinase signaling"
+          "Tyrosine kinase signaling",
+          "Receptor tyrosine kinase",
+          "PDGFR signaling",
+          "Pulmonary vascular remodeling"
         ]
       }
     },
@@ -2514,19 +2393,19 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "CYP19A1",
+          "PTEN",
+          "ESR1",
+          "KIT",
+          "PIK3CA",
           "RB1",
           "CDKN2A",
-          "CYP19A1",
-          "ERBB2",
-          "PTEN",
-          "KIT",
-          "ESR1",
-          "PIK3CA"
+          "ERBB2"
         ],
         "shared_pathways": [
-          "Nuclear receptor signaling",
-          "EGFR signaling",
           "HER2 signaling",
+          "EGFR signaling",
+          "Nuclear receptor signaling",
           "Estrogen receptor signaling"
         ]
       }
@@ -2559,37 +2438,37 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "RAD51B",
-          "TET2",
-          "CDK12",
           "PARP1",
           "PARP3",
-          "RAD51C",
-          "ATM",
-          "BRCA2",
-          "ATRX",
-          "CHEK2",
-          "MYC",
           "BRCA1",
-          "BARD1",
-          "BRAF",
           "ARID1B",
+          "ATM",
+          "BRAF",
           "ATR",
-          "DNMT3A",
-          "FANCA",
+          "TP53",
+          "PALB2",
+          "BRCA2",
           "ESR1",
           "PIK3CA",
           "RB1",
-          "PALB2",
+          "CHEK2",
           "ERBB2",
+          "PARP2",
           "RAD51D",
           "PTEN",
-          "PARP2",
-          "TP53"
+          "CDK12",
+          "FANCA",
+          "DNMT3A",
+          "TET2",
+          "RAD51B",
+          "RAD51C",
+          "BARD1",
+          "ATRX",
+          "MYC"
         ],
         "shared_pathways": [
-          "Nuclear receptor signaling",
-          "Estrogen receptor signaling"
+          "Estrogen receptor signaling",
+          "Nuclear receptor signaling"
         ]
       }
     },
@@ -2621,30 +2500,30 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "CDK12",
           "STK11",
-          "ALK",
-          "NRAS",
-          "ATM",
-          "ARID1A",
-          "PDCD1",
-          "EGFR",
-          "MSH6",
-          "CD274",
-          "BRAF",
           "PBRM1",
+          "BRAF",
+          "ATM",
+          "TP53",
+          "PDCD1",
+          "CD274",
           "PIK3CA",
-          "FGFR3",
+          "ALK",
           "ERBB2",
-          "MLH1",
+          "MSH6",
           "PTEN",
+          "EGFR",
+          "CDK12",
+          "FGFR3",
+          "MLH1",
+          "NRAS",
           "KRAS",
-          "TP53"
+          "ARID1A"
         ],
         "shared_pathways": [
-          "EGFR signaling",
+          "MAPK signaling",
           "HER2 signaling",
-          "MAPK signaling"
+          "EGFR signaling"
         ]
       }
     },
@@ -2676,26 +2555,26 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "POLE",
-          "ROS1",
-          "CDK12",
-          "STK11",
-          "B2M",
-          "NRAS",
-          "ARID1A",
-          "PDCD1",
-          "MDM2",
-          "MET",
-          "CD274",
-          "BRAF",
-          "PBRM1",
-          "ERBB2",
           "FGFR1",
-          "PTEN",
-          "IDH1",
+          "STK11",
           "KIT",
+          "PBRM1",
+          "BRAF",
+          "MET",
           "TP53",
-          "MDM4"
+          "PDCD1",
+          "B2M",
+          "POLE",
+          "CD274",
+          "MDM4",
+          "MDM2",
+          "ERBB2",
+          "PTEN",
+          "CDK12",
+          "NRAS",
+          "IDH1",
+          "ARID1A",
+          "ROS1"
         ],
         "shared_pathways": []
       }
@@ -2729,10 +2608,10 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "TSC1",
           "NTRK1",
           "PPARG",
-          "PIK3CA",
-          "TSC1"
+          "PIK3CA"
         ],
         "shared_pathways": []
       }
@@ -2765,11 +2644,11 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "IL6",
-          "FCGR2A",
-          "CXCL13",
           "JAK2",
-          "MS4A1"
+          "MS4A1",
+          "FCGR2A",
+          "IL6",
+          "CXCL13"
         ],
         "shared_pathways": [
           "JAK-STAT signaling",
@@ -2841,14 +2720,14 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "CACNA2D1",
-          "CACNA1B",
           "CACNA1A",
-          "CACNA1I",
           "CACNA2D2",
-          "CACNA1H",
           "KCNQ3",
           "CACNA1G",
+          "CACNA1B",
+          "CACNA1H",
+          "CACNA2D1",
+          "CACNA1I",
           "CACNA1E"
         ],
         "shared_pathways": []
@@ -2882,14 +2761,14 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "SRD5A2",
           "SRD5A1",
+          "SRD5A2",
           "AR"
         ],
         "shared_pathways": [
+          "5-alpha reductase pathway",
           "Androgen receptor signaling",
-          "Hair follicle cycling",
-          "5-alpha reductase pathway"
+          "Hair follicle cycling"
         ]
       }
     },
@@ -2921,17 +2800,17 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "TUBB2A",
           "TUBB6",
-          "NRG1",
           "TUBB1",
+          "NRG1",
+          "TUBB2B",
+          "TUBB2A",
           "TUBB4B",
           "BDNF",
-          "TUBB",
-          "TUBB8",
-          "TUBB4A",
           "TUBB3",
-          "TUBB2B"
+          "TUBB8",
+          "TUBB",
+          "TUBB4A"
         ],
         "shared_pathways": []
       }
@@ -2964,16 +2843,16 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "TUBB2A",
           "TUBB6",
           "TUBB1",
+          "TUBB2B",
+          "TUBB2A",
           "TUBB4B",
-          "TUB",
-          "TUBB",
-          "TUBB8",
-          "TUBB4A",
           "TUBB3",
-          "TUBB2B"
+          "TUB",
+          "TUBB8",
+          "TUBB",
+          "TUBB4A"
         ],
         "shared_pathways": []
       }
@@ -3008,14 +2887,14 @@
         "shared_genes": [
           "DDB1",
           "CUL4A",
-          "KDR",
+          "CRBN",
           "RBX1",
           "TP53",
-          "CRBN"
+          "KDR"
         ],
         "shared_pathways": [
-          "Ubiquitin-proteasome system",
-          "Protein degradation"
+          "Protein degradation",
+          "Ubiquitin-proteasome system"
         ]
       }
     },
@@ -3078,9 +2957,9 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "TSC1",
           "FKBP1A",
-          "TSC2",
-          "TSC1"
+          "TSC2"
         ],
         "shared_pathways": []
       }
@@ -4067,9 +3946,9 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
+          "PLA2G6",
           "ATM",
           "TP53",
-          "PLA2G6",
           "SF3B1"
         ],
         "shared_pathways": []
@@ -4103,12 +3982,12 @@
         "mechanism_score": 0.0,
         "literature_score": 0.0,
         "shared_genes": [
-          "ABCG2",
-          "IBSP",
-          "UMOD",
-          "PTGS2",
           "SLCO1B1",
           "TCF7L2",
+          "UMOD",
+          "ABCG2",
+          "PTGS2",
+          "IBSP",
           "ABCA1"
         ],
         "shared_pathways": []

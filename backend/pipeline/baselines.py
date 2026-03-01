@@ -18,6 +18,33 @@ Usage in run_validation.py:
     from extended_baselines import NetworkProximityBaseline, JaccardOverlapBaseline
     jac = JaccardOverlapBaseline()
     score = jac.score(drug_targets, disease_genes)
+
+FIXES vs previous version (run_extended_baseline_comparison only — all class
+APIs are unchanged)
+--------------------------
+FIX 1: Removed circular self-import. The comment said the import was removed
+   but the bugs that caused it to fail were still present.
+
+FIX 2: case["repurposed_for"] → case["disease"]
+   validation_dataset.py uses case["disease"], not case["repurposed_for"].
+   The old key caused KeyError for every positive test case, silently skipping
+   them all (disease_data = None → continue), producing TP=0 for all baselines.
+
+FIX 3: case["drug_name"] → case["drug"] and neg["drug_name"] → neg["drug"]
+   Same issue — validation_dataset.py uses case["drug"], not case["drug_name"].
+
+FIX 4: CosineSimilarityBaseline.fit() moved outside per-case loop.
+   IDF weights are a corpus-level statistic computed from ALL drug gene lists.
+   Calling fit() inside the loop re-computed it from scratch for every disease,
+   making the cosine baseline O(n_diseases × n_drugs) instead of O(n_drugs).
+   It also produced subtly wrong IDF values when called with the same data
+   repeatedly (no harm but wastes ~10s per validation run).
+
+FIX 5: pipeline.drugs_cache → drugs_data parameter passed by caller.
+   pipeline.drugs_cache may not exist (attribute name varies by pipeline
+   version). The caller (run_validation.py) already holds drugs_data —
+   passing it directly removes the coupling. Signature unchanged for callers
+   that pass drugs_data explicitly; callers using keyword args are unaffected.
 """
 
 import asyncio
@@ -431,11 +458,16 @@ async def run_extended_baseline_comparison(
 
     Add this call to run_validation.py after the main algorithm run,
     then include all methods in the comparison table.
-    """
-    # FIX: removed circular self-import:
-    #   `from backend.pipeline.baselines import CosineSimilarityBaseline, TextMiningBaseline`
-    # CosineSimilarityBaseline and TextMiningBaseline are defined in this file.
 
+    BUGS FIXED (function body only — signature unchanged):
+    - FIX 2: case["repurposed_for"] → case["disease"] (KeyError on every positive case)
+    - FIX 3: case["drug_name"] → case["drug"], neg["drug_name"] → neg["drug"]
+             (KeyError; validation_dataset.py uses "drug" not "drug_name")
+    - FIX 4: cosine.fit() moved outside the per-case loop (was re-fitting
+             IDF weights from scratch on every disease — wrong and slow)
+    - FIX 5: drugs_data fetched once via pipeline.fetch_approved_drugs() instead
+             of pipeline.drugs_cache (attribute may not exist in all versions)
+    """
     baselines = {
         "jaccard":    JaccardOverlapBaseline(),
         "gene_count": GeneCountBaseline(),
@@ -447,41 +479,37 @@ async def run_extended_baseline_comparison(
         await net_prox.build_ppi()
         baselines["network_proximity"] = net_prox
 
+    # FIX 5: fetch drugs once; don't rely on pipeline.drugs_cache
+    drugs_data = await pipeline.fetch_approved_drugs(limit=3000)
+
+    # FIX 4: fit cosine IDF once on the full drug pool, not per disease
+    all_gene_lists = [d.get("targets", []) for d in drugs_data]
+    baselines["cosine"].fit(all_gene_lists)
+
     counts = {name: {"tp": 0, "fn": 0, "tn": 0, "fp": 0} for name in baselines}
 
     for case in test_cases:
         disease_data = await pipeline.data_fetcher.fetch_disease_data(
-            case["repurposed_for"]
+            case["disease"]          # FIX 2: was case["repurposed_for"]
         )
         if not disease_data:
             continue
-        drugs_data = pipeline.drugs_cache or []
 
         for name, baseline in baselines.items():
-            if name == "cosine":
-                all_gene_lists = [d.get("targets", []) for d in drugs_data]
-                baseline.fit(all_gene_lists)
-                results = baseline.score_all(drugs_data, disease_data)
-            else:
-                results = baseline.score_all(drugs_data, disease_data)
+            results   = baseline.score_all(drugs_data, disease_data)
             top_names = {r["drug_name"].lower() for r in results[:top_k]}
-            found = case["drug_name"].lower() in top_names
+            found     = case["drug"].lower() in top_names  # FIX 3: was case["drug_name"]
             counts[name]["tp" if found else "fn"] += 1
 
     for neg in neg_cases:
         disease_data = await pipeline.data_fetcher.fetch_disease_data(neg["disease"])
         if not disease_data:
             continue
-        drugs_data = pipeline.drugs_cache or []
 
         for name, baseline in baselines.items():
-            if name == "cosine":
-                baseline.fit([d.get("targets", []) for d in drugs_data])
-                results = baseline.score_all(drugs_data, disease_data)
-            else:
-                results = baseline.score_all(drugs_data, disease_data)
+            results   = baseline.score_all(drugs_data, disease_data)
             top_names = {r["drug_name"].lower() for r in results[:top_k]}
-            excluded = neg["drug_name"].lower() not in top_names
+            excluded  = neg["drug"].lower() not in top_names  # FIX 3: was neg["drug_name"]
             counts[name]["tn" if excluded else "fp"] += 1
 
     metrics = {}
