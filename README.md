@@ -1,128 +1,82 @@
-# Drug Repurposing Algorithm
+# Drug Repurposing Pipeline
 
-A computational pipeline for identifying novel therapeutic uses for approved drugs, using network-based gene-pathway overlap scoring and multi-source biological data integration.
+A computational pipeline for systematic drug repurposing — given a disease, it ranks approved drugs by how likely they are to treat it, using gene target overlap, pathway proximity, PPI network topology, chemical similarity, and tissue expression as converging lines of evidence.
 
-## Overview
+No hardcoded drug-disease knowledge. All signal comes from live APIs (OpenTargets, ChEMBL, DGIdb, STRING, Reactome, KEGG). Candidates are then filtered for clinical safety, scored for polypharmacology, and put through an in-silico virtual Phase 2 trial.
 
-This tool takes a disease name as input and returns a ranked list of approved drugs that may have therapeutic potential for that disease, based on shared gene targets, biological pathways, protein-protein interactions, drug structural similarity, and mechanism pattern matching.
+---
 
-### Validation Performance (55-case test set: 25 positives, 30 negative controls)
+## How it works
 
-| Metric | Score | Threshold | Status |
-|--------|-------|-----------|--------|
-| Sensitivity | 96.0% | ≥65% | ✅ PASS |
-| Specificity | 96.7% | ≥75% | ✅ PASS |
-| Precision | 96.0% | ≥65% | ✅ PASS |
-| F1 | 96.0% | — | — |
-| ECE (calibration) | 0.018 | <0.10 | ✅ PASS |
+The pipeline runs in roughly nine steps:
 
-Bootstrap 95% CI (n=1,000 iterations):
+1. **Fetch disease data** from OpenTargets Platform — associated genes with evidence scores, active trial counts, and rare-disease flags
+2. **EFO ontology expansion** — walks the disease ontology tree to pull in genes from related conditions, widening the target set without hardcoding anything
+3. **Fetch drugs** from ChEMBL (all max-phase 4 compounds), then enrich targets via DGIdb, ChEMBL mechanisms, and OpenTargets drug queries. Biologics and key small molecules without API coverage get targets from primary pharmacological literature
+4. **Score each drug** against the disease using a weighted six-component formula (see below)
+5. **Tissue expression** — OpenTargets RNA-seq data confirms targets are actually expressed in the disease-relevant tissue
+6. **Safety filter** — drops or flags drugs with known contraindications for the disease class, using both per-drug lookup and mechanism-class rules
+7. **Polypharmacology scoring** — rewards drugs that hit resistance genes, cover multiple mechanism classes, and have broad disease-target coverage
+8. **Virtual Phase 2 trial** — simulates 200 virtual patients with disease-specific parameters (stroma barrier, mutation heterogeneity, immune desert fraction, etc.) to estimate ORR and prioritize candidates
+9. **Baseline comparison** — Jaccard, gene count, cosine (TF-IDF), network proximity, and text mining baselines are scored against the same validation set to quantify how much each pipeline component adds
 
-| Metric | Score | 95% CI |
-|--------|-------|--------|
-| Sensitivity | 0.960 | [0.880 – 1.000] |
-| Specificity | 0.967 | [0.900 – 1.000] |
-| Precision | 0.960 | [0.885 – 1.000] |
-| F1 | 0.960 | [0.898 – 1.000] |
+---
 
-### Baseline Comparison
+## Scoring
 
-| Method | Sensitivity | Specificity | Precision |
-|--------|-------------|-------------|-----------|
-| **Main algorithm (v5)** | **96.0%** | **96.7%** | **96.0%** |
-| Cosine similarity | 64.7% | 93.3% | 95.7% |
-| Text-mining (PubMed) | 5.9% | 86.7% | 50.0% |
-| Random baseline | 2.9% | 100.0% | 100.0% |
+The composite score is a weighted sum of six sub-scores, all in [0, 1]:
 
-### RepoDB External Benchmark (independent validation)
+| Component | Weight | Source |
+|---|---|---|
+| Gene overlap | 35% | OpenTargets disease genes × drug targets from DGIdb/ChEMBL |
+| Pathway overlap | 25% | Reactome + KEGG, with per-pathway importance weights |
+| PPI network proximity | 20% | STRING v12 (combined score >= 400), BFS shortest path |
+| Chemical similarity | 10% | Tanimoto/ECFP4 vs known drugs for the disease |
+| Mechanism alignment | 5% | Keyword matching between drug mechanism and disease context |
+| Literature signal | 5% | PubMed co-occurrence (optional, off by default for speed) |
 
-Evaluated on oncology, cardiovascular, metabolic, neurological, and autoimmune disease subsets (24 diseases resolved, 89% resolution rate):
+Tissue expression and polypharmacology are applied as post-hoc adjustments on top of this base score.
 
-| Metric | Score |
-|--------|-------|
-| AUC-ROC | 0.733 |
-| AUC-PR | 0.011 |
-| Hit@50 | 0.281 |
-| MRR | 0.045 |
+---
 
-Single false negative: nusinersen/SMA — documented ASO coverage gap (max_phase=3, not in ChEMBL approved pool). Effective sensitivity on scoreable drugs: 25/25.
-
-## How It Works
+## Project structure
 
 ```
-Disease name
-     │
-     ▼
-OpenTargets API ──► Disease-associated genes & pathways (top 200)
-     │
-     ▼
-ChEMBL API ──► ~2,700 approved drugs (full max_phase=4 set, paginated)
-     │
-     ▼
-DGIdb API ──► Drug-gene interaction targets (primary enrichment)
-     │
-     ▼
-ChEMBL Mechanism API ──► Gene targets for drugs DGIdb misses (biologics, etc.)
-     │
-     ▼
-OpenTargets knownDrugs ──► Third-source enrichment for remaining gaps
-     │
-     ▼
-STRING PPI API ──► Protein-protein interaction network for target expansion
-     │
-     ▼
-ChEMBL Similarity API ──► Drug structural similarity (Tanimoto coefficient)
-     │
-     ▼
-Knowledge Graph ──► Nodes: disease, genes, pathways, drugs
-                    Edges: associations, interactions, memberships
-     │
-     ▼
-Scoring ──► Gene overlap score        (35%)
-            Pathway overlap score     (25%)
-            PPI network score         (20%)
-            Drug similarity score     (10%)
-            Mechanism pattern score   ( 5%)
-            PubMed co-occurrence      ( 5%)
-     │
-     ▼
-Safety Filter ──► Remove contraindicated drugs
-     │
-     ▼
-Ranked candidate list
+backend/pipeline/
+├── production_pipeline.py       # main entry point, orchestrates everything
+├── data_fetcher.py              # ChEMBL, DGIdb, OpenTargets data fetching
+├── scorer.py                    # weighted scoring formula + sensitivity analysis
+├── ppi_network.py               # STRING PPI proximity scoring
+├── drug_similarity.py           # Tanimoto/ECFP4 chemical similarity
+├── reactome_kegg_integration.py # live Reactome + KEGG pathway queries
+├── tissue_expression.py         # OpenTargets RNA expression scoring
+├── drug_filter.py               # contraindication database + safety filtering
+├── polypharmacology.py          # multi-target resistance bypass scoring
+├── insilico_trial.py            # virtual Phase 2 clinical trial simulator
+├── calibration.py               # Platt/isotonic score calibration + ECE/AUROC
+├── baselines.py                 # Jaccard, network proximity, cosine baselines
+├── graph_builder.py             # knowledge graph (disease-gene-drug-pathway)
+└── clinical_validator.py        # ClinicalTrials.gov + PubMed + OpenFDA validation
 ```
 
-## Data Sources
+---
 
-| Source | What it provides | API |
-|--------|-----------------|-----|
-| OpenTargets Platform | Disease-associated genes with evidence scores | GraphQL |
-| ChEMBL | All approved drugs (max_phase=4, ~2,700 total) | REST |
-| DGIdb | Drug-gene interaction targets | GraphQL |
-| STRING | Protein-protein interaction network | REST |
-| ChEMBL Similarity | Drug structural similarity (Tanimoto) | REST |
-| PubMed E-utilities | Drug-disease literature co-occurrence | REST |
-| ClinicalTrials.gov | Active trial counts per disease | REST |
-| Reactome | Pathway annotations | REST |
-| KEGG | Pathway annotations | REST |
-
-No data is hardcoded. All drug targets, disease genes, and scores are fetched live from APIs at runtime.
-
-## Installation
+## Setup
 
 ```bash
-git clone https://github.com/yourusername/drug-repurposing.git
-cd drug-repurposing
-
-python -m venv backend/venv
-source backend/venv/activate      # macOS/Linux
-
-pip install -r backend/requirements.txt
+pip install -r backend/requirements.txt --break-system-packages
 ```
 
-## Usage
+RDKit is optional but improves chemical similarity accuracy (ECFP4 vs lightweight SMILES hashing). Without it the pipeline falls back gracefully.
 
-### Run the full pipeline
+```bash
+# With RDKit (recommended)
+pip install rdkit --break-system-packages
+```
+
+---
+
+## Usage
 
 ```python
 import asyncio
@@ -130,169 +84,116 @@ from backend.pipeline.production_pipeline import ProductionPipeline
 
 async def main():
     pipeline = ProductionPipeline()
-    result = await pipeline.analyze_disease(
-        disease_name="glioblastoma multiforme",
-        min_score=0.2,
-        max_results=20,          # NOTE: use max_results, not top_k
-    )
-    for candidate in result["candidates"]:
-        print(f"{candidate['name']}: score={candidate['score']:.3f}  cal={candidate['calibrated_score']:.3f}")
+    results = await pipeline.analyze_disease("pulmonary arterial hypertension")
+    
+    for c in results["top_candidates"][:10]:
+        print(f"{c['drug_name']:25s}  score={c['score']:.3f}  genes={c['shared_genes'][:3]}")
+    
     await pipeline.close()
 
 asyncio.run(main())
 ```
 
-### Run validation (55-case test set)
+Or if you want more control — fetch data once and score against multiple diseases:
 
-```bash
-PYTHONPATH=. python run_validation.py
+```python
+async def main():
+    pipeline = ProductionPipeline()
+    
+    disease_data = await pipeline.data_fetcher.fetch_disease_data("rheumatoid arthritis")
+    drugs_data   = await pipeline.fetch_approved_drugs(limit=3000)
+    
+    candidates = await pipeline.generate_candidates(
+        disease_data=disease_data,
+        drugs_data=drugs_data,
+        min_score=0.1,
+        fetch_ppi=True,
+        fetch_similarity=True,
+        use_tissue=True,
+        use_polypharm=True,
+    )
+    
+    await pipeline.close()
 ```
 
-### Run the full validation pipeline (all 5 steps)
+---
 
-```bash
-chmod +x validate_all.sh
-./validate_all.sh --skip-repodb          # fast: skips RepoDB (~45 min total)
-./validate_all.sh                        # full: includes RepoDB (~3 hrs)
+## Baselines
+
+Five baselines are included for comparison in validation runs:
+
+- **Jaccard** — set overlap between drug targets and disease genes, normalized by union size
+- **Gene count** — raw shared gene count (log-normalized); shows that set-size bias correction matters
+- **Network proximity** — Cheng et al. 2018 "closest" measure using a STRING-derived PPI graph; requires downloading STRING DB (~30 seconds first run, then cached)
+- **Cosine similarity** — TF-IDF weighted gene-set vectors; IDF fit on the full drug pool
+- **Text mining** — PubMed co-occurrence via NCBI E-utilities (rate-limited to 3 req/sec)
+
+```python
+from backend.pipeline.baselines import run_extended_baseline_comparison
+
+metrics = await run_extended_baseline_comparison(
+    pipeline=pipeline,
+    test_cases=positive_cases,
+    neg_cases=negative_cases,
+    top_k=100,
+    use_network_proximity=False,  # set True if STRING data available
+)
 ```
 
-### Run RepoDB benchmark (independent external validation)
+---
 
-```bash
-# repodb.csv is downloaded automatically if not present
-# Recommended: filter to pipeline's strong disease areas
-python repodb_benchmark.py \
-  --disease-filter oncology,cardiovascular,metabolic,neurological,autoimmune \
-  --max-diseases 50 \
-  --output repodb_benchmark_results.json
+## Score calibration
+
+Raw composite scores are calibrated to probabilities using either Platt scaling (logistic regression) or isotonic regression. Calibration parameters are saved to disk and auto-loaded on subsequent runs.
+
+```python
+from backend.pipeline.calibration import ScoreCalibrator
+
+cal = ScoreCalibrator(method="platt")
+cal.fit(train_scores, train_labels)
+
+summary = cal.calibration_summary(val_scores, val_labels)
+print(f"AUROC: {summary['metrics']['auroc']:.3f}")
+print(f"ECE:   {summary['metrics']['ece']:.4f}")
+print(f"All passed: {summary['all_passed']}")
 ```
 
-### Run statistical analysis (bootstrap CIs, calibration)
+Pass criteria: AUROC >= 0.70, sensitivity >= 0.65, specificity >= 0.75, ECE < 0.15, Brier < 0.25.
 
-```bash
-python score_calibration.py --input validation_results.json
-python statistical_tests.py --input validation_results.json --n-bootstrap 1000
-```
+---
 
-## Project Structure
+## Virtual trials
 
-```
-drug-repurposing/
-├── backend/
-│   └── pipeline/
-│       ├── data_fetcher.py              # API calls: OpenTargets, ChEMBL, DGIdb
-│       ├── graph_builder.py             # Knowledge graph construction (NetworkX)
-│       ├── scorer.py                    # Gene/pathway/PPI/similarity/mechanism scoring
-│       ├── calibration.py               # Platt scaling (reads calibration_params.json)
-│       ├── reactome_kegg_integration.py # Live Reactome + KEGG pathway mapping
-│       ├── clinical_validator.py        # ClinicalTrials + PubMed + FDA validation
-│       ├── drug_filter.py               # Safety contraindication filter
-│       └── production_pipeline.py       # Orchestrator
-├── validation_dataset.py                # 55-case test set (25 TP + 30 TN, v4.0)
-├── run_validation.py                    # Validation runner with metrics + baselines
-├── repodb_benchmark.py                  # RepoDB benchmark (auto-downloads CSV)
-├── score_calibration.py                 # Bootstrap CIs, AUROC, Platt calibration
-├── statistical_tests.py                 # Bootstrap CIs, McNemar, DeLong tests
-├── false_negative_analysis.py           # Root-cause analysis of missed cases
-├── extended_baselines.py                # Jaccard, cosine, network proximity baselines
-├── calibration_params.json              # Fitted Platt parameters (written by score_calibration.py)
-├── validate_all.sh                      # Full 5-step validation pipeline runner
-├── REFERENCES.md                        # Full citation list
-└── README.md                            # This file
-```
+The in-silico trial simulator generates 200 virtual patients with disease-specific biology (stroma density, immune infiltration, mutation heterogeneity, PK variability) and simulates tumor/disease dynamics over 6 treatment cycles. The network effect blends topology signal (40%) with the composite ML score (60%) — this prevents near-zero ORR for all candidates when drug targets do not directly overlap with the disease gene set.
 
-## Scoring Algorithm
+Disease parameters are pre-defined for 30+ conditions. For any condition without specific parameters the pipeline falls back to generic defaults.
 
-Each drug-disease pair receives a composite score (0–1):
+---
 
-```
-score = 0.35 × gene_score
-      + 0.25 × pathway_score
-      + 0.20 × ppi_score
-      + 0.10 × drug_similarity_score
-      + 0.05 × mechanism_score
-      + 0.05 × literature_score
-```
+## External APIs used
 
-**gene_score** — Weighted Jaccard-based overlap between drug targets and disease-associated genes. OpenTargets evidence scores used as weights.
+| API | What we fetch | Auth |
+|---|---|---|
+| OpenTargets Platform | Disease genes, drug-target associations, tissue expression | None |
+| ChEMBL REST | Approved drug pool, molecular properties, mechanisms | None |
+| DGIdb GraphQL | Drug-gene interactions | None |
+| STRING v12 | PPI edges for network proximity | None |
+| Reactome Content Service | Pathway annotations per gene | None |
+| KEGG REST | Supplementary pathway annotations | None |
+| ClinicalTrials.gov v2 | Trial counts for diseases and drug-disease pairs | None |
+| NCBI E-utilities | PubMed co-occurrence counts | None (3 req/sec) |
+| OpenFDA | Adverse event counts | None |
 
-**pathway_score** — Weighted overlap between drug pathway annotations (Reactome/KEGG) and disease pathways.
+All requests go through aiohttp with SSL via certifi. Responses are disk-cached to avoid redundant API calls across runs.
 
-**ppi_score** — Network proximity score using STRING protein-protein interaction graph. Captures indirect target-gene links within 2 hops using the Cheng et al. (2018) closest-distance measure.
+---
 
-**drug_similarity_score** — Tanimoto structural similarity (ECFP4 Morgan fingerprints via RDKit) to known drugs for the disease. Requires ≥1 known drug in ChEMBL for the disease.
+## Notes
 
-**mechanism_score** — Pattern matching of drug mechanism text against disease biology keywords.
+**Drug target coverage:** Around 60-70% of approved drugs have targets from DGIdb or ChEMBL mechanisms. The remaining ~30% go through OpenTargets drug queries, then biologic/small-molecule literature fallbacks. Drugs with zero targets after all four steps receive scores only from chemical similarity and PPI proximity.
 
-**literature_score** — Normalised PubMed co-occurrence count (live query, log-scaled).
+**Pathway annotations:** Reactome and KEGG are queried live. The curated fallback map in `data_fetcher.py` covers ~200 genes and is used only when both APIs return nothing for a gene.
 
-Confidence tiers: `high` (≥0.40), `medium` (≥0.15), `low` (<0.15)
+**Scoring weights** were selected by grid search over a tuning split. The `weight_grid_search()` function in `scorer.py` enumerates the full search space. Sensitivity analysis (Spearman rank correlation under ±10% weight perturbation) is included in `scorer.py` as `sensitivity_analysis()`.
 
-Scores are calibrated using Platt scaling. Parameters are fitted by `score_calibration.py` and stored in `calibration_params.json`. See `calibration.py` for implementation details.
-
-**Note on calibrated scores**: Calibrated probabilities span approximately 0.43–0.47 across the raw score range [0, 1] with current parameters. The standard 0.50 threshold is unreachable; use `raw_score ≥ 0.20` for binary classification. Calibrated scores are reported for supplementary ranking only.
-
-## Validation Design
-
-### Train/test split
-
-| Set | Cases | Purpose |
-|-----|-------|---------|
-| Tuning set | 8 cases | Parameter calibration only — never reported |
-| Test set | 25 positive cases | Sensitivity measurement |
-| Negative controls | 30 cases | Specificity measurement |
-
-Test cases are sourced from DrugCentral (Ursu et al. 2019), Rephetio/Hetionet (Himmelstein et al. 2017), and FDA drug label approvals:
-
-- **Mechanism-congruent** (18 cases): strong gene/pathway overlap expected
-- **Empirical** (10 cases): discovered clinically via serendipity, indirect mechanism
-- **Literature-supported** (6 cases): PubMed co-occurrence signal present
-
-Negative controls are deliberately diverse: antibiotics vs. oncology, antidiabetics vs. neurological disease, anticoagulants vs. genetic disorders.
-
-### Stratified performance by disease area
-
-| Disease area | Sensitivity | Specificity |
-|-------------|-------------|-------------|
-| Oncology | 1.000 | 1.000 |
-| Autoimmune/inflammatory | 1.000 | 1.000 |
-| Cardiovascular | 1.000 | N/A |
-| Metabolic | 1.000 | 1.000 |
-| Neurological | 1.000 | 1.000 |
-| Rare disease | 0.833 | 1.000 |
-
-### Statistical robustness
-
-Bootstrap confidence intervals (1,000 iterations, 95% CI) computed by `statistical_tests.py`. Platt calibration refitted and written to `calibration_params.json` by `score_calibration.py`.
-
-## Limitations
-
-1. **Drug target coverage**: ~84% of the 2,700-drug pool has gene targets. Drugs with no targets in DGIdb, ChEMBL mechanism, or OpenTargets knownDrugs score 0 regardless of relevance. Antisense oligonucleotides (e.g. nusinersen) are systematically undercovered.
-
-2. **Disease gene representation**: OpenTargets derives associations primarily from GWAS. Diseases with non-heritable pathophysiology (iatrogenic syndromes, structural protein defects) have sparse gene associations and reduced algorithm performance.
-
-3. **Indirect mechanisms**: Empirical repurposing cases discovered via clinical observation (e.g., aspirin for CAD) score lower because their therapeutic mechanism is orthogonal to disease susceptibility genes.
-
-4. **Pathway coverage**: Live Reactome/KEGG annotations cover ~95% of well-studied genes. Rarely annotated genes fall back to a curated supplementary map.
-
-5. **Disease naming**: OpenTargets uses EFO ontology terms. Disease aliases are mapped automatically via a three-layer resolution strategy (hardcoded EFO map → text normalization → OpenTargets text-search fallback), but uncommon disease names may fail to resolve.
-
-6. **PPI inflation risk**: The PPI component can inflate scores for promiscuous hub genes (e.g. AMPK/mTOR pathway members). Prospective predictions for diseases with broad metabolic gene associations (e.g. Huntington disease) should be interpreted with caution.
-
-7. **Calibration range**: Platt-calibrated probabilities currently cluster near 0.45 due to score compression in the raw score distribution. Binary classification should use `raw_score ≥ 0.20`, not the calibrated 0.50 threshold.
-
-## Known Issues and Fixes in Progress
-
-- **Gabapentin/neuropathic pain false negative**: CACNA2D1/D2 targets not consistently returned by DGIdb. Fix: add to manual target supplement.
-- **Tocilizumab/CRS**: "cytokine release syndrome" not in EFO. Fix: add to DISEASE_ALIASES as out-of-scope category.
-- **RepoDB infectious disease resolution**: Bacterial/viral disease names in RepoDB use clinical terminology not present in EFO. The `--disease-filter` flag excludes these by default; the `REPODB_TO_EFO` map in `repodb_benchmark.py` covers common cases.
-
-## References
-
-See `REFERENCES.md` for full citation list. Key references:
-
-- Cheng F, et al. (2018) Network-based prediction of drug combinations. *Nat Commun*. doi:10.1038/s41467-018-04202-y
-- Brown AS & Patel CJ (2017). A standard database for drug repositioning. *Pac Symp Biocomput*, 22, 393–401.
-- Ursu O, et al. (2019). DrugCentral 2018: an update. *Nucleic Acids Res*, 47(D1), D963–D970.
-- Himmelstein DS, et al. (2017). Systematic integration of biomedical knowledge prioritizes drugs for repurposing. *eLife*, 6, e26726.
-- Platt J (1999). Probabilistic outputs for support vector machines. *Advances in Large Margin Classifiers*, 61–74.
+**Network effects in virtual trials:** The `_calculate_network_effect` method blends PPI topology with the composite ML score. The ^1.5 exponent on `network_effect` steepens differentiation between strong and weak matches and was calibrated against real-world ORR benchmarks (multiple myeloma / lenalidomide as reference point).
