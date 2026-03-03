@@ -1,4 +1,4 @@
-# Drug Repurposing Pipeline
+# LiveDRP - Drug Repurposing Pipeline
 
 A computational pipeline for systematic drug repurposing — given a disease, it ranks approved drugs by how likely they are to treat it, using gene target overlap, pathway proximity, PPI network topology, chemical similarity, and tissue expression as converging lines of evidence.
 
